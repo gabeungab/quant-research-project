@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Databento
+#  To make sure I don't accidentally commit the data files that somehow got into the repo
+data/*.zip
+*.zst
+*.dbn
