@@ -1,11 +1,9 @@
-from data_loader import load_all_days, resample_to_bars, remove_outliers
+from data_loader import load_all_days, remove_outliers, compute_tfi
 
 df = load_all_days("/Users/gabeungab/Desktop/Quant Research Project/raw-data/GLBX-20250501-20251231/")
 df_clean = remove_outliers(df)
-df_bars = resample_to_bars(df_clean, "1D")
+tfi = compute_tfi(df_clean)
 
-print(df_bars.shape)
-print(df_bars.head())
-
-print(df_clean['price'].describe())
-print(df_clean[df_clean['price'] < 1000])
+print(tfi.shape)
+print(tfi.head(10))
+print(tfi['tfi'].describe())
