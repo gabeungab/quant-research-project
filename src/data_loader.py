@@ -1,6 +1,8 @@
 import databento as db
 import pandas as pd
 
+import os
+
 def load_day(filepath):
     """
     Load one day of ES futures trades from a .dbn.zst file.
@@ -31,3 +33,35 @@ def load_day(filepath):
     ]
 
     return df_rth
+
+
+def load_all_days(directory):
+    """
+    Load all days of ES futures trades from a directory path.
+    Returns a combined DataFrame filtered to RTH (9:30 AM to 4:00 PM ET),
+    sorted chronologically.
+
+    Parameters
+    ----------
+    directory : str
+        Path to a directory containing .dbn.zst files from Databento
+        GLBX.MDP3 trades feed.
+
+    Returns
+    -------
+    pd.DataFrame
+        All RTH trades across all days, sorted by ts_event_et.
+    """
+    frames = []
+
+    for file in sorted(os.listdir(directory)):
+        if file.endswith('.dbn.zst'):
+            filepath = os.path.join(directory, file)
+            print(f"Loading {file}...")
+            df = load_day(filepath)
+            frames.append(df)
+
+    df_all = pd.concat(frames, ignore_index=True)
+    df_all = df_all.sort_values('ts_event_et').reset_index(drop=True)
+
+    return df_all
