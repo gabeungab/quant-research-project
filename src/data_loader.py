@@ -20,6 +20,7 @@ def load_day(filepath):
     """
     store = db.DBNStore.from_file(filepath)
     df = store.to_df()
+    df = df[~df['symbol'].str.contains('-')]
 
     df['ts_event'] = pd.to_datetime(df['ts_event'], utc=True)
     df['ts_event_et'] = df['ts_event'].dt.tz_convert('America/New_York')
@@ -65,3 +66,69 @@ def load_all_days(directory):
     df_all = df_all.sort_values('ts_event_et').reset_index(drop=True)
 
     return df_all
+
+
+def resample_to_bars(df, bar_size):
+    """
+    Resample RTH tick data into OHLCV time bars.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        RTH trades DataFrame with ts_event_et column.
+    bar_size : str
+        Pandas offset string for bar size, e.g. '5s', '15min', '4h', '1D'.
+
+    Returns
+    -------
+    pd.DataFrame
+        OHLCV bars with trade count, indexed by ts_event_et.
+    """
+    df = df.set_index('ts_event_et')
+
+    df_bars = df.resample(bar_size).agg(
+        open=('price', 'first'),
+        high=('price', 'max'),
+        low=('price', 'min'),
+        close=('price', 'last'),
+        volume=('size', 'sum'),
+        trade_count=('price', 'count')
+    )
+
+    df_bars = df_bars.dropna(subset=['open'])
+
+    return df_bars
+
+
+def remove_outliers(df, window=100, threshold=5):
+    """
+    Remove trades with prices more than a given number of standard
+    deviations from the rolling mean price.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        RTH trades DataFrame with a price column.
+    window : int
+        Number of trades to use for rolling mean and std. Default 100.
+    threshold : float
+        Number of standard deviations beyond which a trade is an outlier.
+        Default 5.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with outlier trades removed.
+    """
+    rolling_mean = df['price'].rolling(window=window, min_periods=1).mean()
+    rolling_std = df['price'].rolling(window=window, min_periods=1).std()
+
+    lower_bound = rolling_mean - threshold * rolling_std
+    upper_bound = rolling_mean + threshold * rolling_std
+
+    mask = (df['price'] >= lower_bound) & (df['price'] <= upper_bound)
+
+    n_outliers = (~mask).sum()
+    print(f"Removed {n_outliers} outlier trades ({n_outliers / len(df) * 100:.4f}% of data)")
+
+    return df[mask].reset_index(drop=True)
