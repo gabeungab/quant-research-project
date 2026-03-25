@@ -211,3 +211,6 @@ __marimo__/
 data/*.zip
 *.zst
 *.dbn
+
+# macOS
+.DS_Store
