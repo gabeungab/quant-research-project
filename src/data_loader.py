@@ -1,7 +1,9 @@
 import databento as db
 import pandas as pd
 import numpy as np
+
 import statsmodels.api as sm
+from statsmodels.stats.diagnostic import acorr_ljungbox
 
 import os
 
@@ -245,3 +247,29 @@ def run_ols(tfi_df, returns_df):
     results = model.fit(cov_type='HAC', cov_kwds={'maxlags': 5})
 
     return results
+
+
+def test_autocorrelation(series, lags=10):
+    """
+    Test for autocorrelation in a time series using the Ljung-Box test.
+    Null hypothesis: no autocorrelation up to the specified number of lags.
+    A significant p-value (< 0.05) indicates autocorrelation is present.
+
+    Parameters
+    ----------
+    series : pd.Series
+        Time series to test. Can be residuals, returns, TFI, or any
+        other series.
+    lags : int
+        Number of lags to test. Default 10.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with lb_stat (test statistic) and lb_pvalue for
+        each lag from 1 to lags.
+    """
+    result = acorr_ljungbox(series.dropna(), lags=lags, return_df=True)
+    
+    print(result)
+    return result
