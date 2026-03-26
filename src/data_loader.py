@@ -5,6 +5,8 @@ import numpy as np
 import statsmodels.api as sm
 from statsmodels.stats.diagnostic import acorr_ljungbox
 
+import matplotlib.pyplot as plt
+
 import os
 
 def load_day(filepath):
@@ -273,3 +275,52 @@ def test_autocorrelation(series, lags=10):
     
     print(result)
     return result
+
+
+def plot_overview(tfi_df, returns_df, day='2025-05-01',
+                  save_path='results/overview.png'):
+    """
+    Produce a 2x2 overview figure and save to disk.
+    Top row: TFI and returns for a single trading day (line plots).
+    Bottom row: distributions of TFI and returns across full sample
+    (histograms).
+
+    Parameters
+    ----------
+    tfi_df : pd.DataFrame
+        DataFrame with tfi column, indexed by ts_event_et.
+    returns_df : pd.DataFrame
+        DataFrame with log_return column, indexed by ts_event_et.
+    save_path : str
+        Path to save the figure. Default 'results/overview.png'.
+    """
+    one_day = day
+    tfi_day = tfi_df.loc[one_day]
+    returns_day = returns_df.loc[one_day]
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+
+    axes[0, 0].plot(tfi_day.index, tfi_day['tfi'])
+    axes[0, 0].set_title('TFI — 2025-05-01')
+    axes[0, 0].set_xlabel('Time')
+    axes[0, 0].set_ylabel('TFI')
+
+    axes[0, 1].plot(returns_day.index, returns_day['log_return'])
+    axes[0, 1].set_title('Log Returns — 2025-05-01')
+    axes[0, 1].set_xlabel('Time')
+    axes[0, 1].set_ylabel('Log Return')
+
+    axes[1, 0].hist(tfi_df['tfi'].dropna(), bins=100)
+    axes[1, 0].set_title('TFI Distribution — Full Sample')
+    axes[1, 0].set_xlabel('TFI')
+    axes[1, 0].set_ylabel('Frequency')
+
+    axes[1, 1].hist(returns_df['log_return'].dropna(), bins=100)
+    axes[1, 1].set_title('Return Distribution — Full Sample')
+    axes[1, 1].set_xlabel('Log Return')
+    axes[1, 1].set_ylabel('Frequency')
+
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=150, bbox_inches='tight')
+    print(f"Figure saved to {save_path}")
+    plt.close(fig)
