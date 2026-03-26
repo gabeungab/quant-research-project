@@ -39,8 +39,17 @@ The project has two layers:
 
 ## Current status
 Phase 0, Stream A. Completed:
-- working load_day(), load_all_days(), resample_to_bars(),
-  remove_outliers(), compute_tfi() in src/data_loader.py
+- load_day(), load_all_days(), resample_to_bars(),
+  remove_outliers(), compute_tfi(), compute_returns(),
+  run_ols(), test_autocorrelation() in src/data_loader.py
+- Full 2025 in-sample dataset: 58,923,210 clean RTH trades
+  across 173 trading days
+- TFI confirmed working: range [-1, 1], mean ~0, std 0.115
+- OLS regression working with Newey-West standard errors
+- Ljung-Box confirmed strong autocorrelation in TFI and
+  residuals (lb_stat≈1000+ and 14,500+ respectively)
+- Remaining Stream A: matplotlib plotting (one multi-panel
+  figure). Stream B and C: not yet started.
 
 ---
 
