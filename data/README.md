@@ -11,8 +11,12 @@ Databento, CME Globex (GLBX.MDP3), Trades schema
 Each record contains: timestamp, price, size, aggressor side
 
 ## More Info
-- Project analysis restricted to Regular Trading Hours (RTH, 9:30 AM to 4:00 PM EST)
+- Project analysis restricted to Regular Trading Hours 
+  (RTH, 9:30 AM to 4:00 PM EST)
 - Data stored locally in Desktop/Quant Research Project/raw-data
+- All duplicate trades are confirmed legitimate multi-level fills 
+  (large orders sweeping multiple price levels simultaneously). 
+  All these trades are retained in the dataset.
 
 ## Excluded Trading Days
 

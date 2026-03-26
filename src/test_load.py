@@ -6,6 +6,3 @@ daily = compute_daily_stats(df_clean)
 print(daily.shape)
 print(daily.head())
 print(daily.describe())
-
-print(daily[daily['trade_count'] < 50000].sort_values('trade_count'))
-print(daily.sort_values('trade_count').head(10))
