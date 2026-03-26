@@ -6,8 +6,10 @@ import statsmodels.api as sm
 from statsmodels.stats.diagnostic import acorr_ljungbox
 
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 import os
+
 
 def load_day(filepath):
     """
@@ -393,3 +395,110 @@ def compute_daily_stats(df):
     daily = daily[daily['trade_count'] > 0]
 
     return daily
+
+
+def plot_phase1(df_clean, daily, save_dir='results'):
+    """
+    Produce Phase 1 exploratory plots and save to results/.
+
+    Parameters
+    ----------
+    df_clean : pd.DataFrame
+        Clean RTH trades DataFrame with ts_event_et, price, size columns.
+    daily : pd.DataFrame
+        Daily summary DataFrame from compute_daily_stats().
+    save_dir : str
+        Directory to save figures. Default 'results'.
+    """
+    df = df_clean.set_index('ts_event_et')
+
+    bars = df.resample('1min').agg(
+        trade_count=('price', 'count'),
+        volume=('size', 'sum'),
+        close=('price', 'last')
+    ).dropna()
+
+    bars['log_return'] = np.log(bars['close'] / bars['close'].shift(1))
+
+    bars['time_of_day'] = bars.index.time
+    intraday_trades = bars.groupby('time_of_day')['trade_count'].mean()
+    intraday_volume = bars.groupby('time_of_day')['volume'].mean()
+    intraday_vol = bars.groupby('time_of_day')['log_return'].std()
+
+    # Plot 1: Intraday trade arrival rate
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.plot(range(len(intraday_trades)), intraday_trades.values)
+    ax.set_title('Intraday Trade Arrival Rate (Average Across 169 Days)')
+    ax.set_xlabel('Time of Day')
+    ax.set_ylabel('Average Trades per Minute')
+    ax.set_xticks([0, 60, 120, 180, 240, 300, 360, 389])
+    ax.set_xticklabels(
+        ['9:30', '10:30', '11:30', '12:30', '13:30', '14:30', '15:30', '16:00'],
+        rotation=45
+    )
+    fig.tight_layout()
+    fig.savefig(f'{save_dir}/intraday_trade_arrival.png', dpi=150,
+                bbox_inches='tight')
+    plt.close(fig)
+    print("Saved intraday_trade_arrival.png")
+
+    # Plot 2: Intraday volume profile
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.plot(range(len(intraday_volume)), intraday_volume.values)
+    ax.set_title('Intraday Volume (Average Across 169 Days)')
+    ax.set_xlabel('Time of Day')
+    ax.set_ylabel('Average Volume per Minute')
+    ax.set_xticks([0, 60, 120, 180, 240, 300, 360, 389])
+    ax.set_xticklabels(
+        ['9:30', '10:30', '11:30', '12:30', '13:30', '14:30', '15:30', '16:00'],
+        rotation=45
+    )
+    fig.tight_layout()
+    fig.savefig(f'{save_dir}/intraday_volume.png', dpi=150,
+                bbox_inches='tight')
+    plt.close(fig)
+    print("Saved intraday_volume.png")
+
+    # Plot 3: Intraday volatility profile
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.plot(range(len(intraday_vol)), intraday_vol.values)
+    ax.set_title('Intraday Volatility (Average Across 169 Days)')
+    ax.set_xlabel('Time of Day')
+    ax.set_ylabel('Average Volatility per Minute')
+    ax.set_xticks([0, 60, 120, 180, 240, 300, 360, 389])
+    ax.set_xticklabels(
+        ['9:30', '10:30', '11:30', '12:30', '13:30', '14:30', '15:30', '16:00'],
+        rotation=45
+    )
+    fig.tight_layout()
+    fig.savefig(f'{save_dir}/intraday_volatility.png', dpi=150,
+                bbox_inches='tight')
+    plt.close(fig)
+    print("Saved intraday_volatility.png")
+
+    # Plot 4: Trade size distribution (log scale)
+    fig, ax = plt.subplots(figsize=(12, 4))
+    sizes = df['size'][df['size'] > 0]
+    ax.hist(sizes, bins=100)
+    ax.set_xscale('log')
+    ax.set_title('Trade Size Distribution (Log Scale)')
+    ax.set_xlabel('Trade Size (log scale)')
+    ax.set_ylabel('Frequency')
+    fig.tight_layout()
+    fig.savefig(f'{save_dir}/trade_size_distribution.png', dpi=150,
+                bbox_inches='tight')
+    plt.close(fig)
+    print("Saved trade_size_distribution.png")
+
+    # Plot 5: Daily volume over time
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.plot(daily.index, daily['total_volume'])
+    ax.set_title('Daily Volume Over Time')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Daily Volume')
+    fig.tight_layout()
+    fig.autofmt_xdate()
+    fig.savefig(f'{save_dir}/daily_volume_over_time.png', dpi=150,
+                bbox_inches='tight')
+    plt.close(fig)
+    print("Saved daily_volume_over_time.png")
