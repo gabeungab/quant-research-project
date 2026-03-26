@@ -108,15 +108,26 @@ Newey-West standard errors (HAC)
   Both are violated in financial data due to non-constant
   variance and autocorrelation in residuals. NW corrects this.
 - With NW, coefficients/the constant estimates are unchanged from 
-  the OLS formula; NW only changes standard errors, which in turn 
-  changes t-statistics and p-values.
+  the OLS formula; NW only changes standard errors, which changes 
+  t-statistics (t = coefficient / standard error) and p-values 
+  (which are derived directly from the t-statistic).
 - maxlags=5: accounts for residual autocorrelation up to 5 lags 
   (convention for 1min financial data).
 - Always use Newey-West for any regression on financial time series.
 
 ---
 
-Organize later by concept category as this file grows
-- Ex. Probability and Distributions, Hypothesis Testing, Regression,
-  Time Series, Market Microstructure, Signal Construction, etc.
-  
+## Python Syntax and Patterns
+
+Bracket notation vs dot notation
+- Bracket notation object['key']: selects from dictionaries and
+  DataFrames. Use when accessing a column or key by name.
+- Dot notation object.attribute: accesses attributes of class
+  objects. Use when accessing built-in properties of an object.
+- For example, tfi['tfi'] selects the tfi column from the pandas 
+  DataFrame, while results.resid accesses residuals from a 
+  statsmodels RegressionResults object.
+
+---
+
+Organize by concept categories later as this file grows
