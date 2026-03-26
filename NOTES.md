@@ -123,7 +123,8 @@ Bracket notation vs dot notation
 - Bracket notation object['key']: selects from dictionaries and
   DataFrames. Use when accessing a column or key by name.
 - Dot notation object.attribute: accesses attributes of class
-  objects. Use when accessing built-in properties of an object.
+  objects. Use when accessing built-in properties (methods or
+  attributes) of an object.
 - For example, tfi['tfi'] selects the tfi column from the pandas 
   DataFrame, while results.resid accesses residuals from a 
   statsmodels RegressionResults object.

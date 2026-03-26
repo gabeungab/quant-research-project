@@ -42,11 +42,19 @@ def load_day(filepath):
     return df_rth
 
 
+EXCLUDED_DATES = {
+    '20250526',  # Memorial Day
+    '20250704',  # Independence Day
+    '20250901',  # Labor Day
+    '20251127',  # Thanksgiving Eve (half-session)
+}
+
 def load_all_days(directory):
     """
     Load all days of ES futures trades from a directory path.
     Returns a combined DataFrame filtered to RTH (9:30 AM to 4:00 PM ET),
-    sorted chronologically.
+    sorted chronologically. Excludes known federal holidays and
+    half-sessions (see EXCLUDED_DATES constant).
 
     Parameters
     ----------
@@ -63,6 +71,10 @@ def load_all_days(directory):
 
     for file in sorted(os.listdir(directory)):
         if file.endswith('.dbn.zst'):
+            date_str = file[10:18]
+            if date_str in EXCLUDED_DATES:
+                print(f"Skipping {file} (excluded date)")
+                continue
             filepath = os.path.join(directory, file)
             print(f"Loading {file}...")
             df = load_day(filepath)
@@ -324,3 +336,60 @@ def plot_overview(tfi_df, returns_df, day='2025-05-01',
     fig.savefig(save_path, dpi=150, bbox_inches='tight')
     print(f"Figure saved to {save_path}")
     plt.close(fig)
+
+
+def compute_daily_stats(df):
+    """
+    Compute daily summary statistics from clean RTH tick data.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Clean RTH trades DataFrame with ts_event_et, price,
+        size, and side columns.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per trading day with columns: trade_count,
+        total_volume, buy_sell_ratio, avg_trade_size,
+        realized_vol, price_range.
+    """
+    df = df.set_index('ts_event_et')
+
+    daily = df.resample('1D').agg(
+        trade_count=('price', 'count'),
+        total_volume=('size', 'sum'),
+        avg_trade_size=('size', 'mean'),
+        daily_high=('price', 'max'),
+        daily_low=('price', 'min')
+    )
+
+    buy_vol = (df[df['side'] == 'B']['size']
+               .resample('1D').sum()
+               .rename('buy_volume'))
+    sell_vol = (df[df['side'] == 'A']['size']
+                .resample('1D').sum()
+                .rename('sell_volume'))
+
+    daily = daily.join(buy_vol).join(sell_vol)
+    daily['buy_volume'] = daily['buy_volume'].fillna(0).astype('int64')
+    daily['sell_volume'] = daily['sell_volume'].fillna(0).astype('int64')
+
+    daily['price_range'] = daily['daily_high'] - daily['daily_low']
+    daily['buy_sell_ratio'] = (
+        daily['buy_volume'] /
+        daily['sell_volume'].replace(0, float('nan'))
+    )
+
+    bars = df.resample('1min').agg(
+        close=('price', 'last')
+    ).dropna()
+    bars['log_return'] = np.log(bars['close'] / bars['close'].shift(1))
+    daily['realized_vol'] = bars['log_return'].resample('1D').std()
+
+    daily = daily.drop(columns=['daily_high', 'daily_low',
+                                  'buy_volume', 'sell_volume'])
+    daily = daily[daily['trade_count'] > 0]
+
+    return daily
