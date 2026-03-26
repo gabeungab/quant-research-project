@@ -1,6 +1,7 @@
 import databento as db
 import pandas as pd
 import numpy as np
+import statsmodels.api as sm
 
 import os
 
@@ -173,7 +174,7 @@ def compute_tfi(df, bar_size='1min'):
     tfi_df = pd.concat([buy_volume, sell_volume], axis=1).fillna(0)
     tfi_df = tfi_df.astype({'buy_volume': 'int64', 'sell_volume': 'int64'})
     tfi_df['total_volume'] = tfi_df['buy_volume'] + tfi_df['sell_volume']
-    
+
     tfi_df['tfi'] = np.where(
         tfi_df['total_volume'] > 0,
         (tfi_df['buy_volume'] - tfi_df['sell_volume']) / tfi_df['total_volume'],
@@ -183,3 +184,64 @@ def compute_tfi(df, bar_size='1min'):
     tfi_df = tfi_df.dropna(subset=['tfi'])
 
     return tfi_df
+
+
+def compute_returns(df, bar_size='1min'):
+    """
+    Compute 1-minute log returns from clean RTH tick data.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Clean RTH trades DataFrame with ts_event_et and price columns.
+    bar_size : str
+        Pandas offset string for bar size. Default '1min'.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with close price and log_return columns,
+        indexed by ts_event_et. First bar of each day will be
+        NaN (no previous close to compute return from).
+    """
+    df = df.set_index('ts_event_et')
+
+    bars = df.resample(bar_size).agg(
+        close=('price', 'last')
+    ).dropna()
+
+    bars['log_return'] = np.log(bars['close'] / bars['close'].shift(1))
+
+    return bars
+
+
+def run_ols(tfi_df, returns_df):
+    """
+    Run OLS regression of forward 1-minute returns on TFI.
+    Aligns TFI at time T with return at time T+1 to test
+    whether TFI predicts future price movement.
+
+    Parameters
+    ----------
+    tfi_df : pd.DataFrame
+        DataFrame with tfi column, indexed by ts_event_et.
+    returns_df : pd.DataFrame
+        DataFrame with log_return column, indexed by ts_event_et.
+
+    Returns
+    -------
+    statsmodels RegressionResults
+        Fitted OLS model. Call .summary() to print results.
+    """
+    merged = pd.DataFrame({
+        'tfi': tfi_df['tfi'],
+        'forward_return': returns_df['log_return'].shift(-1)
+    }).dropna()
+
+    X = sm.add_constant(merged['tfi'])
+    Y = merged['forward_return']
+
+    model = sm.OLS(Y, X)
+    results = model.fit(cov_type='HAC', cov_kwds={'maxlags': 5})
+
+    return results

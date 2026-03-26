@@ -1,9 +1,9 @@
-from data_loader import load_all_days, remove_outliers, compute_tfi
+from data_loader import load_all_days, remove_outliers, compute_tfi, compute_returns, run_ols
 
 df = load_all_days("/Users/gabeungab/Desktop/Quant Research Project/raw-data/GLBX-20250501-20251231/")
 df_clean = remove_outliers(df)
-tfi = compute_tfi(df_clean)
 
-print(tfi.shape)
-print(tfi.head(10))
-print(tfi['tfi'].describe())
+tfi = compute_tfi(df_clean)
+returns = compute_returns(df_clean)
+results = run_ols(tfi, returns)
+print(results.summary())
