@@ -38,7 +38,7 @@ The project has two layers:
 - Phase 6: Paper writing and code polish
 
 ## Current status
-Phase 1 complete. Phase 2 is next.
+Phase 2 in progress.
 
 Phase 0 Stream A completed:
 - load_day(), load_all_days(), resample_to_bars(),
@@ -55,10 +55,9 @@ Phase 1 completed:
 - Data quality checks complete: calendar spreads filtered,
   price outliers removed (114,413 trades, 0.19%),
   duplicate timestamps confirmed legitimate
-- compute_daily_stats() function complete, daily_stats saved
-  to results/daily_stats.csv
+- compute_daily_stats() function complete
 - Five exploratory plots saved to results/
-- RESEARCH.md Section 3 (Data) complete — working paper draft
+- RESEARCH.md Section 3 (Data) complete
 
 Key findings from Phase 1:
 - Buy/sell volume ratio: 1.003 — balanced across sample
@@ -70,6 +69,18 @@ Key findings from Phase 1:
 - Intraday volatility: open spike only, flat through close —
   diverges from volume due to uninformed MOC order flow
 
+Phase 2 in progress:
+- paper/phase2_development.md started — sections 1 through 3.4
+- Research direction: TFI predicting returns conditioned on
+  informed trading regime
+- Regime detector: High Kyle's lambda + Low Roll spread +
+  High trade arrival rate + Exclusion windows
+- Exclusions: final 10 min (MOC), 30 min around FOMC/CPI/NFP,
+  contract roll dates + 3 days before
+- VPIN retained as robustness check only (daily level)
+- Remaining work: polish sections 1-3, finalize research
+  question, write proposal.md deliverable, literature search
+
 ---
 
 ## Project structure
@@ -80,10 +91,12 @@ quant-research-project/
         data_loader.py  — all data loading, cleaning, signal,
                           stats, and plotting functions
     /results     — saved figures and daily_stats.csv
-    /paper       — LaTeX research paper (not started)
+    /paper       — working paper and research documents
+        RESEARCH.md          — formal working paper draft
+        phase2_development.md — Phase 2 research question
+                                development document
     JOURNAL.md   — running research log (dated session entries)
     NOTES.md     — general technical concept reference
-    RESEARCH.md  — working paper draft (formal research output)
     CLAUDE.md    — this file
 
 ## Markdown file purposes and language standards

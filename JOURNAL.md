@@ -172,10 +172,75 @@ None
 
 **Next step:**
 Start phase 2 - Research Question Selection and Literature Review.
+Organize NOTES.md with logical ordering and clear heading.
 
 ---
 
 ## 2026-03-26
+
+**Session Summary:**
+- Wrote first three main sections of paper/phase2_develpoment.md by
+  researching with Google Scholar / SSRN.com (see document for more info).
+
+**Findings:**
+- TFI in ES futures is theoretically motivated as an informed
+  trading signal but is diluted by uninformed flow unconditionally.
+  The research question requires conditioning TFI on an informed
+  trading regime to isolate periods where TFI is most predictive.
+
+- VPIN considered and rejected as primary regime indicator due to
+  four violated assumptions: informed traders trade uni-directionally,
+  uninformed traders arrive symmetrically, trade arrival follows
+  stationary independent Poisson processes, and information events
+  are one-sided. Daily VPIN retained as robustness check only.
+
+- Kyle's lambda selected as primary regime indicator — measures
+  actual price response to order flow rather than inferring informed
+  trading from imbalance patterns. Theoretically grounded in Kyle
+  (1985) and Glosten-Milgrom (1985).
+
+- Lambda disambiguation problem identified: five alternative
+  explanations for high lambda beyond informed trading — thin
+  markets, market stress, inventory pressure, mechanical clustering,
+  contract roll proximity.
+
+- Three conditions selected to address the most significant
+  alternatives: Low Roll spread (tightness), High trade arrival
+  rate (depth), Exclusion windows (MOC, announcements, roll dates
+  extended to 3 days before roll). Two alternatives remain
+  unaddressable from trades-only data (inventory pressure,
+  mechanical clustering) — acknowledged as limitations that
+  bias against finding significant results. Still need to double 
+  check this combination for improvement.
+
+- Roll spread estimator has a known failure mode in strongly
+  one-sided markets (bid-ask bounce disappears). Trade arrival
+  rate compensates as it remains reliable regardless of flow
+  directionality — the two conditions are complementary, not redundant.
+
+- Other metrics, estimators, proxies, etc. were found while researching,
+  but were either not possible to research with my data or I thought was
+  too involved for this project (leading to a lower-quality final product).
+
+**Open questions:**
+Review sections 3.4 through 3.6 and continue research about a better 
+combination of conditions (both more encompassing/efficient while not 
+introducing unneccessary complexity with diminishing returns) that
+deals with the ambiguity of high lambda being and informed trading.
+
+**AI Usage:**
+- Claude helped me connect conceptual ideas togther between research papers.
+
+**Next step:**
+Review and edit/polish sections 3.4 through 3.6
+- Also add to sections 3.2 and 3.3 explicitly why VPIN assumptions could
+  not be handled the same way that Kyle's Lambda ambiguity is being handeled.
+- Fill out citations with the correct format.
+Then move onto completing the rest of phase2_development.md.
+
+---
+
+## 2026-03-27
 
 **Session Summary:**
 - 
