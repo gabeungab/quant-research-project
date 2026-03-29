@@ -264,12 +264,24 @@ and arrival respond.
 
 **Remaining limitations**
 
-Two sources of high lambda are not addressable from
-trades-only data: market maker inventory pressure and
-mechanical order clustering. Both introduce noise and 
-increase misclassification of uninformed periods as 
-informed, diluting the regime signal and biasing 
-against finding a significant result.
+Three sources of residual misclassification are not fully
+addressable from these three conditions and trades-only data.
+
+Market maker inventory pressure and mechanical order clustering
+can produce elevated lambda in liquid markets without informed
+trading. Both introduce noise and increase misclassification
+of uninformed periods as informed, diluting the regime signal
+and biasing against finding a significant result.
+
+The Roll spread estimator becomes unreliable when order flow
+is strongly one-sided — the bid-ask bounce disappears as
+consecutive price changes move in the same direction. This
+failure occurs precisely in high-lambda informed trading
+conditions. Trade arrival rate partially compensates by
+remaining informative regardless of flow directionality,
+but during sustained directional episodes the Roll component
+contributes little, effectively reducing the detector to a
+two-component measure (still not counterproductive).
 
 ### 3.6 The Complete Informed Trading Regime
 ```

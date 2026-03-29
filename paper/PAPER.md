@@ -139,6 +139,11 @@ High lambda indicates market makers are updating quotes aggressively
 in response to order flow — consistent with their inference that
 the flow may be informed.
 
+However, high lambda alone is insufficient: elevated price impact 
+can equally reflect thin markets, market stress, or mechanical order 
+flow rather than informed trading. Two additional components and
+exclusion windows rule out these alternative explanations.
+
 **Roll (1984) spread estimate** measures bid-ask tightness from
 the serial covariance of consecutive trade price changes. When a
 bid-ask spread exists, prices alternate between bid and ask,
@@ -174,6 +179,14 @@ recent market conditions rather than the full sample distribution,
 allowing the score to adapt to the two distinct activity regimes
 identified in Section 3.3. All rolling estimates use only past
 data — no lookahead bias is introduced.
+
+Three sources of residual misclassification are acknowledged.
+Market maker inventory pressure and mechanical order clustering
+can produce elevated lambda in liquid markets without informed
+trading. The Roll spread estimator is unreliable in strongly
+one-sided markets as the bid-ask bounce disappears; however, 
+this weakens rather than reverses the regime signal, as lambda
+and arrival rate continue to reflect informed trading.
 
 ### 4.3 Exclusion Windows
 
@@ -270,20 +283,30 @@ The following robustness checks are pre-specified:
 *Regime operationalization:* A binary regime dummy (1 if lambda
 exceeds its 75th percentile, Roll falls below its 25th percentile,
 and arrival rate exceeds its 75th percentile, simultaneously) is
-tested as an alternative to the continuous RegimeScore. Thresholds
-are additionally tested at 70th/30th and 80th/20th percentiles.
+tested as an alternative to the continuous RegimeScore. This tests
+whether results are robust to the specific functional form of the
+regime indicator — confirming that findings reflect genuine regime
+differences rather than artifacts of the logistic transformation
+or z-score standardization. Thresholds are additionally tested at
+70th/30th and 80th/20th percentiles.
 
 *Regime indicator:* RegimeScore is replaced with daily VPIN
 (Easley, Lopez de Prado, and O'Hara, 2012) to test whether results
-are consistent across theoretically distinct regime indicators with
-different failure modes.
+hold under a theoretically distinct regime indicator with different
+construction assumptions and different failure modes — confirming
+that findings are not specific to the lambda-based regime
+detector.
 
 *Rolling window lengths:* Lambda and Roll windows tested at 15
 and 60 minutes. Arrival rate window tested at 2 and 10 minutes.
+This tests whether results are sensitive to the specific time
+horizon over which regime components are estimated.
 
 *Return measurement:* Forward return tested with and without
-skipping one bar to account for bid-ask bounce contamination in
-the return series.
+skipping one bar. This tests whether results are contaminated
+by bid-ask bounce in the return series — a microstructure
+artifact that could create spurious predictability at the
+1-minute horizon.
 
 ---
 
