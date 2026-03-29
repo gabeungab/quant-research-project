@@ -232,10 +232,10 @@ deals with the ambiguity of high lambda being and informed trading.
 - Claude helped me connect conceptual ideas togther between research papers.
 
 **Next step:**
-Review and edit/polish sections 3.4 through 3.6
-- Also add to sections 3.2 and 3.3 explicitly why VPIN assumptions could
-  not be handled the same way that Kyle's Lambda ambiguity is being handeled.
-- Fill out citations with the correct format.
+Review and edit/polish sections 3.4 through 3.6.
+- Add to sections 3.2 and 3.3 explicitly why VPIN assumptions could not 
+  be handled the same way that Kyle's Lambda ambiguity is being handled.
+- Fill out all citations with the correct format.
 Then move onto completing the rest of phase2_development.md.
 
 ---
@@ -243,13 +243,88 @@ Then move onto completing the rest of phase2_development.md.
 ## 2026-03-27
 
 **Session Summary:**
+- Completed paper/phase2_development.md — all sections finalized
+  including research question, methodology preview, and references.
+- Finalized continuous RegimeScore construction replacing binary
+  dummy as primary regime operationalization.
+- Updated PAPER.md to include Section 4 (Signal Construction and
+  Empirical Design) and Section 5 placeholder (Market Maker
+  Implications).
+
+**Findings:**
+Research question finalized:
+- Primary: Does TFI predict short-term returns in ES futures,
+  and is this relationship stronger when RegimeScore is high —
+  consistent with informed trading dominating order flow?
+- Secondary: How does TFI predictive power decay across horizons
+  (1/5/15-min) in high vs low RegimeScore periods, and what does
+  this imply about information incorporation speed?
+
+Regime detector design finalized:
+- Continuous RegimeScore ∈ [0,1] constructed from rolling
+  z-scores of Kyle's lambda, Roll spread (inverted), and trade
+  arrival rate, combined via logistic transformation. Adapts
+  to structural changes across sample period.
+- Binary regime dummy (was the first planned regime dummy) 
+  retained as robustness check only (75th/25th percentile 
+  thresholds, also tested at 70/30 and 80/20).
+- Daily VPIN retained as alternative regime indicator robustness
+  check — different theoretical framework, different failure modes.
+
+Primary regression specification:
+- Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t +
+                 β₃·(TFI_t × RegimeScore_t) +
+                 β₄·Return_t + β₅·TFI_{t-1} + ε_t
+- β₃ is the primary test statistic.
+- Lagged return (β₄) and lagged TFI (β₅) added as controls
+  for autocorrelation structure — ensures β₃ reflects genuine
+  regime-conditioned predictability, not persistence.
+
+Additional tests planned:
+- Regime detector validation (volatility, announcement,
+  price impact persistence) before primary test
+- Horizon analysis at 1/5/15-minute forward returns
+- Effect size decomposition (fraction of bars at high
+  RegimeScore levels)
+- Subsample stability across full sample and two activity
+  sub-periods (May-Sep, Oct-Dec)
+- Transaction cost analysis + annualized Sharpe ratio
+- Out-of-sample validation on 2026 held-out period
+
+Robustness checks pre-specified:
+- Lambda/Roll window: 15 and 60 minutes
+- Arrival rate window: 2 and 10 minutes
+- Percentile thresholds for binary dummy: 70/30, 80/20
+- Forward return: with and without one-bar skip (bid-ask
+  bounce correction)
+
+**Open questions:**
+None
+
+**AI Usage:**
+- Claude helped me connect literature to research design
+  decisions made throughout Phase 2.
+- Claude helped me develop continuous RegimeScore construction
+  logic and all the robustness checks and their structure.
+
+**Next step:**
+Deeply review entire project to make broad connections between 
+everything I have done so far (understanding status more clearly).
+Then start Phase 3 — Exploratory analysis of TFI and RegimeScore on 
+the full in-sample dataset.
+
+---
+
+## 2026-03-28
+
+**Session Summary:**
 - 
 
 **Findings:**
-- 
+
 
 **Open questions:**
-
+None
 
 **AI Usage:**
 - 

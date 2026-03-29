@@ -2,9 +2,11 @@
 
 ## What this project is
 Original empirical research on ES futures tick data from CME Globex.
-Studying a market microstructure/factor phenomenon using a trades-only
-dataset with aggressor side (B/A/N). Research question TBD in Phase 2
-after exploratory analysis.
+Studying whether Trade Flow Imbalance (TFI) predicts short-term
+returns in ES futures, and whether this predictive relationship is
+stronger during periods of elevated information asymmetry —
+characterized by high price impact, normal market liquidity, and
+absence of known uninformed-flow events.
 
 Final deliverables:
 - Clean GitHub repository with fully reproducible code
@@ -17,12 +19,10 @@ interview — every line of code, every methodological choice,
 every result.
 
 The project has two layers:
-- Layer 1: Rigorous statistical characterization of one specific
-  market phenomenon in ES futures trades data. Narrow and deep,
-  not broad.
-- Layer 2: What the findings imply for a real market participant
-  (trader or market maker). Quantitatively specific, references
-  actual results.
+- Layer 1: Does TFI predict returns more strongly in high-
+  RegimeScore periods? Narrow, rigorous, and empirically tested.
+- Layer 2: What the findings imply for market maker quote
+  adjustment — quantitatively specific, references actual results.
 
 ---
 
@@ -34,11 +34,11 @@ The project has two layers:
 - Phase 2: Research question selection and literature review
 - Phase 3: Exploratory analysis of chosen phenomenon
 - Phase 4: Formal statistical analysis, in/out-of-sample testing
-- Phase 5: Layer 2 implications (market participant behavior)
+- Phase 5: Market maker implications (Layer 2)
 - Phase 6: Paper writing and code polish
 
 ## Current status
-Phase 2 in progress.
+Phase 2 complete. Phase 3 is next.
 
 Phase 0 Stream A completed:
 - load_day(), load_all_days(), resample_to_bars(),
@@ -46,18 +46,15 @@ Phase 0 Stream A completed:
   run_ols(), test_autocorrelation(), plot_overview(),
   plot_phase1() in src/data_loader.py
 - EXCLUDED_DATES constant in load_all_days() for holiday exclusions
-- Stream B and C: not yet started — begin in parallel with Phase 2
+- Stream B and C: not yet started — begin in parallel with Phase 3
 
 Phase 1 completed:
 - Final clean dataset: ~58.8M RTH trades, 169 trading days
-  (4 holidays excluded: Memorial Day, Independence Day,
-  Labor Day, day before Thanksgiving)
 - Data quality checks complete: calendar spreads filtered,
   price outliers removed (114,413 trades, 0.19%),
   duplicate timestamps confirmed legitimate
-- compute_daily_stats() function complete
-- Five exploratory plots saved to results/
-- RESEARCH.md Section 3 (Data) complete
+- compute_daily_stats() complete, five exploratory plots saved
+- PAPER.md Section 3 (Data) complete
 
 Key findings from Phase 1:
 - Buy/sell volume ratio: 1.003 — balanced across sample
@@ -69,17 +66,27 @@ Key findings from Phase 1:
 - Intraday volatility: open spike only, flat through close —
   diverges from volume due to uninformed MOC order flow
 
-Phase 2 in progress:
-- paper/phase2_development.md started — sections 1 through 3.4
-- Research direction: TFI predicting returns conditioned on
-  informed trading regime
-- Regime detector: High Kyle's lambda + Low Roll spread +
-  High trade arrival rate + Exclusion windows
+Phase 2 completed:
+- Research question finalized: does TFI predict returns more
+  strongly in informed trading regimes?
+- Primary signal: TFI at 1-minute resolution
+- Regime detector: continuous RegimeScore ∈ [0,1] constructed
+  from Kyle's lambda (30-min rolling), Roll spread (30-min
+  rolling), trade arrival rate (5-min rolling), combined via
+  rolling z-score standardization and logistic transformation
 - Exclusions: final 10 min (MOC), 30 min around FOMC/CPI/NFP,
-  contract roll dates + 3 days before
-- VPIN retained as robustness check only (daily level)
-- Remaining work: polish sections 1-3, finalize research
-  question, write proposal.md deliverable, literature search
+  contract roll dates + 3 preceding trading days
+- Primary regression: interaction of TFI × RegimeScore with
+  lagged return and lagged TFI as controls; Newey-West SE
+- Additional tests: horizon analysis (1/5/15-min), effect size
+  decomposition, subsample stability, transaction cost analysis,
+  out-of-sample validation
+- Robustness checks: binary regime dummy (75th/25th percentile),
+  alternative thresholds (70th/30th, 80th/20th), alternative
+  windows (15/60-min lambda/Roll, 2/10-min arrival rate),
+  forward return skip, daily VPIN as alternative regime indicator
+- paper/phase2_development.md complete
+- PAPER.md Section 4 (Signal and Empirical Design) complete
 
 ---
 
@@ -92,9 +99,8 @@ quant-research-project/
                           stats, and plotting functions
     /results     — saved figures and daily_stats.csv
     /paper       — working paper and research documents
-        RESEARCH.md          — formal working paper draft
-        phase2_development.md — Phase 2 research question
-                                development document
+        PAPER.md              — formal working paper draft
+        phase2_development.md — Phase 2 research development
     JOURNAL.md   — running research log (dated session entries)
     NOTES.md     — general technical concept reference
     CLAUDE.md    — this file
@@ -114,21 +120,41 @@ concepts learned during the project that apply universally
 Language explains concepts from first principles. This is
 where general knowledge lives, not project-specific results.
 
-RESEARCH.md — working paper draft. Contains only content
+PAPER.md — formal working paper draft. Contains only content
 that belongs in the final research paper. Language is formal
-and calibrated for an audience of graduate-level quants and
-quant recruiters. Explains findings by connecting them to
-already-known concepts in one clause — does not explain
-the concepts themselves. Every claim is supported by a
-number from the analysis. Sections added incrementally as
-phases complete.
+and calibrated for graduate-level quants and quant recruiters.
+Connects findings to known concepts without explaining them.
+Every claim is supported by a number from the analysis.
+Sections added incrementally as phases complete.
 
-The distinction: if a concept applies to any project,
-it goes in NOTES. If it is specific to this dataset and
-analysis, it goes in JOURNAL (findings) or RESEARCH
-(if paper-ready). RESEARCH never contains explanations
-of standard concepts — only empirical observations
-connected to those concepts.
+The distinction: if a concept applies to any project, it goes
+in NOTES. If it is specific to this dataset and analysis, it
+goes in JOURNAL (findings) or PAPER.md (if paper-ready).
+PAPER.md never contains explanations of standard concepts —
+only empirical observations connected to those concepts.
+
+## Research design summary
+
+**Signal:** TFI_t = (BuyVol_t − SellVol_t) / (BuyVol_t + SellVol_t)
+Computed at 1-minute resolution from aggressor side field.
+
+**Regime score:**
+RegimeScore_t = 1 / (1 + exp(−(z_lambda − z_roll + z_arrival)))
+All z-scores computed over rolling 30-minute window (5-min for
+arrival rate). Set to 0 in exclusion windows.
+
+**Primary regression:**
+Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t +
+               β₃·(TFI_t × RegimeScore_t) +
+               β₄·Return_t + β₅·TFI_{t-1} + ε_t
+β₃ is the primary test statistic.
+
+**Key papers:**
+- Kyle (1985) — Econometrica — lambda and informed trading
+- Glosten and Milgrom (1985) — JFE — adverse selection framework
+- Cont, Kukanov, Stoikov (2014) — JFEC — OFI predicting returns
+- Roll (1984) — JF — implicit spread estimator
+- Easley, Lopez de Prado, O'Hara (2012) — RFS — VPIN
 
 ## Data
 - Source: Databento, GLBX.MDP3, Trades schema
@@ -144,11 +170,9 @@ connected to those concepts.
   depth, flags, ts_in_delta, sequence (all constant or
   irrelevant)
 - Symbol rolls: ESM5 (May-Jun) → ESU5 (Jul-Sep) →
-  ESZ5 (Oct-Dec) → ESH6 (Jan-Mar 2026).
-  Handle roll dates in data pipeline.
+  ESZ5 (Oct-Dec) → ESH6 (Jan-Mar 2026)
 - Excluded dates: 2025-05-26, 2025-07-04, 2025-09-01,
-  2025-11-27 (holidays/half-sessions, see EXCLUDED_DATES
-  constant in data_loader.py and data/README.md)
+  2025-11-27 (holidays/half-sessions)
 
 ## Tech stack
 Python 3.13, pandas, NumPy, scipy, statsmodels, matplotlib,
@@ -158,16 +182,19 @@ databento library
 
 ## Standards for Claude Code to enforce
 - Train/test split is time-based: in-sample 2025, out-of-sample
-  2026. Never suggest touching out-of-sample data before Phase 4
-  validation.
-- Methodology must be pre-registered in JOURNAL.md before formal
-  tests. Flag if I run tests before documenting the plan.
-- All regressions on financial time series require Newey-West
-  standard errors — flag if I use default OLS standard errors.
-- Flag if I run multiple hypothesis tests without Bonferroni
+  2026. Never suggest touching out-of-sample data before Phase 4.
+- Methodology must be pre-registered before formal tests. Flag
+  if tests run before plan is documented in JOURNAL.md.
+- All regressions require Newey-West standard errors (maxlags=5).
+  Flag if default OLS standard errors are used.
+- Flag if multiple hypothesis tests run without Bonferroni
   correction.
 - Transaction cost analysis required before any result claim.
-  ES futures tick size = 0.25 index points.
+  ES futures tick size = 0.25 index points (~4 basis points).
+- RegimeScore must be set to 0 in all exclusion windows before
+  any regression — flag if exclusions are not applied.
+- All rolling estimates must use only past data. Flag any
+  lookahead bias in rolling window construction.
 - All results must be reproducible from /src code on raw data.
 
 ## Rules for Claude Code in this project
@@ -178,3 +205,4 @@ databento library
   results
 - When I show you an error, explain what caused it before giving
   the fix
+  
