@@ -117,20 +117,6 @@
 
 ---
 
-## Python Syntax and Patterns
-
-**Bracket notation vs dot notation**
-- Bracket notation object['key']: selects from dictionaries and
-  DataFrames. Use when accessing a column or key by name.
-- Dot notation object.attribute: accesses attributes of class
-  objects. Use when accessing built-in properties (methods or
-  attributes) of an object.
-- For example, tfi['tfi'] selects the tfi column from the pandas 
-  DataFrame, while results.resid accesses residuals from a 
-  statsmodels RegressionResults object.
-
----
-
 ## Market Making — Mechanics, Profit, and Risk
 
 **Core role:**
@@ -220,3 +206,210 @@ observed in ES futures RTH data.
   - Newey-West correction still must be used if residual autocorrelation 
     is dealth with because of second failed assumption (variance is constant; 
     basically never the case in financial markets).
+
+---
+
+## Python Syntax and Patterns
+
+**Bracket notation vs dot notation**
+- Bracket notation object['key']: selects from dictionaries and
+  DataFrames. Use when accessing a column or key by name.
+- Dot notation object.attribute: accesses attributes of class
+  objects. Use when accessing built-in properties (methods or
+  attributes) of an object.
+- For example, tfi['tfi'] selects the tfi column from the pandas 
+  DataFrame, while results.resid accesses residuals from a 
+  statsmodels RegressionResults object.
+
+**Method Chaining**
+Multiple operations can be applied sequentially on a single object
+by chaining method calls with dots. Each method returns an object
+that the next method operates on:
+
+    signed_flow = (df['size'] * df['side'].map({'B': 1, 'A': -1
+                                          , 'N': 0}).fillna(0))
+
+Here, .map() is called on the Series df['side'], returning a new
+Series. .fillna(0) is then called on that result, replacing NaN
+values with 0. Parentheses allow the chain to span multiple lines
+without a line-continuation character.
+
+**.map() on a Series**
+.map(dict) replaces each value in a Series with the corresponding
+value from the dictionary. Values not found in the dictionary
+become NaN:
+
+    df['side'].map({'B': 1, 'A': -1, 'N': 0})
+
+Each 'B' becomes 1, each 'A' becomes -1, each 'N' becomes 0.
+Any unexpected value not in the dictionary becomes NaN, which
+is why .fillna(0) follows immediately to handle edge cases.
+
+**.resample() for Time-Based Aggregation**
+.resample('1min') groups a time-indexed Series or DataFrame into
+1-minute intervals and applies an aggregation function:
+
+    closes = df['price'].resample('1min').last()
+
+.last() takes the last value in each 1-minute window. Other
+common aggregations: .sum(), .count(), .mean(), .first().
+
+Resampling requires a DatetimeIndex — this is why df is set to
+df.set_index('ts_event_et') first. Missing intervals (bars with
+no trades) produce NaN rather than being dropped, preserving
+index alignment across Series.
+
+Critical: never use .dropna() after resampling if you intend to
+combine the result with other resampled Series. Dropping NaN rows
+creates gaps in the index that cause misalignment when Series are
+later combined or compared.
+
+**.diff() for Consecutive Differences**
+.diff() subtracts each element from the previous element,
+producing a Series of period-over-period changes:
+
+    bar_dp = closes.diff()
+
+The first element becomes NaN (no prior value to subtract from).
+This is the standard way to compute price changes from a price
+Series without manual indexing.
+
+**.rolling() for Rolling Window Calculations**
+.rolling(window=N, min_periods=N) creates a rolling window object
+that applies a calculation over the most recent N observations:
+
+    roll_cov = bar_dp.rolling(window=window, 
+           min_periods=window).cov(bar_flow)
+
+min_periods=window means the calculation only produces a value
+once N observations are available — earlier bars return NaN.
+Without min_periods, pandas uses a default of 1, producing
+estimates from single observations that are statistically
+meaningless.
+
+Common rolling methods:
+- .mean() — rolling average
+- .std() — rolling standard deviation
+- .var() — rolling variance
+- .cov(other) — rolling covariance with another Series
+- .corr(other) — rolling correlation with another Series
+
+**.replace() for Safe Division**
+Dividing by zero produces inf or raises errors. .replace(0, value)
+substitutes a specific value for zeros before division:
+
+    lambda_series = roll_cov / roll_var.replace(0, float('nan'))
+
+float('nan') is Python's representation of NaN (not a number).
+Replacing zeros with NaN before division means the result is NaN
+rather than inf when variance is zero — NaN propagates cleanly
+through subsequent calculations and is ignorable, while inf is not.
+
+**.clip() for Bounding Values**
+.clip(lower=x, upper=y) caps values at specified bounds:
+
+    2 * np.sqrt((-cov_serial).clip(lower=0))
+
+Here, clip(lower=0) ensures the argument to sqrt() is never
+negative. The Roll formula requires taking a square root of a
+covariance, which can be positive by chance in small samples —
+positive values under the sqrt would raise a math error. Clipping
+to 0 means those cases return 0 rather than crashing.
+
+Important distinction from signal_construction context: clipping
+Roll spread to 0 is mathematically necessary because the sqrt
+is undefined for negative inputs. Clipping lambda to 0 (removed
+from compute_lambda) was wrong because lambda can legitimately
+be negative — clipping would discard real information.
+
+**Nested Function Definitions**
+Functions can be defined inside other functions. The inner
+function is only accessible within the outer function's scope:
+
+    def compute_regime_score(...):
+        def rolling_zscore(series, window):
+            mean = series.rolling(...).mean()
+            std = series.rolling(...).std()
+            return (series - mean) / std.replace(0, float('nan'))
+
+        z_lambda = rolling_zscore(lambda_series, window=lambda_window)
+
+rolling_zscore is defined inside compute_regime_score because it
+is a helper used only there — defining it inside keeps the module
+namespace clean and signals to a reader that this function is not
+intended for external use.
+
+**np.exp() and the Logistic Function**
+np.exp(x) computes e^x element-wise on a Series or array.
+The logistic (sigmoid) function maps any real number to (0, 1):
+
+    regime_score = 1 / (1 + np.exp(-composite))
+
+For large positive composite values, np.exp(-composite) → 0,
+so regime_score → 1. For large negative values, np.exp(-composite)
+→ ∞, so regime_score → 0. At composite = 0, regime_score = 0.5.
+This is the standard way to convert an unbounded score into a
+probability-like value in [0, 1].
+
+**.reindex() for Index Alignment**
+When combining two Series with different indices, .reindex()
+forces one Series to match another's index, filling missing
+positions with a specified value:
+
+    exclusion_aligned = exclusion_mask.reindex(regime_score.index, fill_value=False)
+
+If exclusion_mask has a different index than regime_score (due to
+NaN dropping or different construction paths), direct combination
+would misalign values. .reindex() guarantees element-wise
+correspondence before the mask is applied.
+
+**.where() for Conditional Value Assignment**
+series.where(condition, other=value) keeps the original value
+where condition is True and replaces with value where False:
+
+    regime_score = regime_score.where(~exclusion_aligned, other=0.0)
+
+~exclusion_aligned inverts the boolean mask (True becomes False,
+False becomes True). So: where the bar is NOT excluded (True),
+keep regime_score; where the bar IS excluded (True in original
+mask, False after ~), replace with 0.0.
+
+Common trap: the condition in .where() specifies where to KEEP
+values, not where to replace them. This is the opposite of the
+intuitive reading — think "keep where condition is True."
+
+**pd.Series() from a List or Array**
+pd.Series(values, index=index) constructs a Series with explicit
+index alignment:
+
+    mask = pd.Series(False, index=index)
+    mask |= pd.Series(index.time >= cutoff_time, index=index)
+
+The second line creates a boolean Series by evaluating a condition
+on index.time (a numpy array of time objects), then combines it
+with mask using |= (in-place boolean OR). Each True in the new
+Series sets the corresponding position in mask to True.
+
+**pd.offsets.BDay() for Business Day Arithmetic**
+pd.offsets.BDay(n) represents n business days (weekdays only,
+excluding weekends). Used for date arithmetic:
+
+    roll_start = (roll_date - pd.offsets.BDay(3)).date()
+
+This computes the date 3 business days before roll_date,
+correctly skipping weekends. Using timedelta(days=3) would
+be wrong — it would count calendar days and potentially land
+on a weekend.
+
+**.date() vs. Timestamp for Date Comparisons**
+pd.Timestamp objects include both date and time components.
+When comparing against dates (not datetimes), extract the
+date component first:
+
+    index_dates = pd.Series(index.date, index=index) mask |= 
+    (index_dates >= roll_start) & (index_dates <= roll_date.date())
+
+index.date returns an array of Python date objects (no time
+component). Comparing a date object against a Timestamp would
+fail or produce unexpected results due to type mismatch —
+always align types before comparison.
