@@ -188,6 +188,10 @@ one-sided markets as the bid-ask bounce disappears; however,
 this weakens rather than reverses the regime signal, as lambda
 and arrival rate continue to reflect informed trading.
 
+Additionally, the 30-minute rolling window requires a warmup 
+period at the start of each trading session, excluding the 
+first 30 minutes of each day from regime detection.
+
 ### 4.3 Exclusion Windows
 
 Three categories of known uninformed directional flow are excluded
@@ -218,6 +222,11 @@ high-RegimeScore bars — informed trading produces permanent price
 impact as information is incorporated, while uninformed trading
 produces temporary impact that reverts as market makers recognize
 the flow was not informative.
+
+The detector operates most reliably during the stable midday 
+portion of the trading session, where lambda is estimable, Roll 
+is not in persistent one-sided failure, and structural events 
+are absent.
 
 ### 4.5 Primary Specification
 

@@ -283,6 +283,10 @@ but during sustained directional episodes the Roll component
 contributes little, effectively reducing the detector to a
 two-component measure (still not counterproductive).
 
+Additionally, the 30-minute rolling window requires a warmup 
+period at the start of each trading session, excluding the 
+first 30 minutes of each day from regime detection.
+
 ### 3.6 The Complete Informed Trading Regime
 ```
 Informed Trading Regime =
