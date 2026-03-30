@@ -7,5 +7,5 @@ daily = compute_daily_stats(df_clean)
 plot_phase1(df_clean, daily)
 
 daily = compute_daily_stats(df_clean)
-daily.to_csv('results/daily_stats.csv')
+daily.to_csv('results/phase1/daily_stats.csv')
 print("Saved daily_stats.csv")

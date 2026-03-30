@@ -397,9 +397,9 @@ def compute_daily_stats(df):
     return daily
 
 
-def plot_phase1(df_clean, daily, save_dir='results'):
+def plot_phase1(df_clean, daily, save_dir='results/phase1'):
     """
-    Produce Phase 1 exploratory plots and save to results/.
+    Produce Phase 1 exploratory plots and save to results/phase1.
 
     Parameters
     ----------
