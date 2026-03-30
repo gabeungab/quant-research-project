@@ -185,12 +185,23 @@ Market maker inventory pressure and mechanical order clustering
 can produce elevated lambda in liquid markets without informed
 trading. The Roll spread estimator is unreliable in strongly
 one-sided markets as the bid-ask bounce disappears; however, 
-this weakens rather than reverses the regime signal, as lambda
-and arrival rate continue to reflect informed trading.
+this weakens rather than reverses the regime signal, as lambda 
+and arrival rate continue to reflect informed trading conditions 
+correctly.
 
-Additionally, the 30-minute rolling window requires a warmup 
-period at the start of each trading session, excluding the 
-first 30 minutes of each day from regime detection.
+Kyle's lambda is undefined when signed order flow has zero variance
+across the estimation window — periods where buying and selling
+pressure are perfectly balanced and no directional information
+content is detectable. Approximately 31% of core RTH bars fall
+into this category and are excluded from regime detection. These
+bars are self-selecting as uninformative: the absence of
+directional flow is itself evidence against an informed trading
+regime.
+
+Additionally, the lambda 30-minute rolling window requires a warmup
+period at the start of each trading session, excluding the first
+30 minutes of each day from regime detection — though this is
+subsumed by the zero-variance exclusion, as confirmed empirically.
 
 ### 4.3 Exclusion Windows
 
