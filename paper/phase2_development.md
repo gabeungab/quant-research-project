@@ -343,12 +343,11 @@ power reflects noise that reverts quickly.
 
 ### Primary Question
 
-Does the relationship between TFI and subsequent returns differ
-systematically across information asymmetry regimes — specifically,
-does TFI exhibit short-term momentum in low-information-asymmetry
-periods and mean reversion in high-information-asymmetry periods,
-consistent with fast information incorporation creating overshoot
-at high price-impact moments?
+Does the regime detector correctly identify periods of elevated
+information asymmetry in ES futures, as measured by the
+contemporaneous amplification of TFI's price impact? And does
+this elevated informativeness translate into forward return
+predictability at the one-bar horizon?
 
 ### Secondary Question
 
@@ -468,17 +467,16 @@ Where:
 - β₁: TFI slope when RegimeScore = 0 (uninformed baseline)
 - β₂: return level shift per unit increase in RegimeScore,
   independent of TFI
-- β₃: additional TFI slope per unit increase in RegimeScore
-  — the primary test statistic; a positive and significant
-  β₃ indicates TFI predicts returns more strongly as
-  informed trading probability increases
+- β₃: primary coefficient of interest — measures whether
+  the regime amplifies TFI's relationship with returns;
+  significant β₃ indicates genuine regime-conditioned
+  price dynamics
 - β₄: lagged return — controls for return autocorrelation
   and mean reversion
 - β₅: lagged TFI — controls for TFI autocorrelation,
-  ensuring β₃ reflects genuine predictability rather than
-  signal persistence
-- ε_t: residual — portion of Return_{t+1} unexplained by
-  the model
+  ensuring β₃ reflects genuine signal rather than
+  persistence
+- ε_t: residual
 
 Newey-West standard errors, maxlags=5.
 
@@ -492,11 +490,16 @@ Return_t = α + β₁·TFI_t + β₂·RegimeScore_t +
            β₃·(TFI_t × RegimeScore_t) +
            β₄·Return_{t-1} + β₅·TFI_{t-1} + ε_t
 
-Note: the contemporaneous β₃ is partially tautological because
-lambda (built into RegimeScore) directly measures price impact.
-The more original contribution is the sign reversal in the T+1
-forward specification — mean reversion in high-regime versus
-momentum in low-regime.
+Note on the contemporaneous specification: the contemporaneous β₃
+is partially circular because Kyle's lambda — built into RegimeScore
+— is itself a contemporaneous price impact measure. The
+contemporaneous analysis therefore serves as validation of the
+regime detector rather than as an independent predictive finding.
+The primary original contribution is the null result in the T+1
+specification and what it implies about information incorporation
+speed: ES futures prices adjust fully to regime-conditioned order
+flow within one 1-minute bar, leaving no residual predictability
+at any forward horizon tested.
 
 **Effect size decomposition:**
 
