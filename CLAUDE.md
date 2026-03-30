@@ -2,11 +2,14 @@
 
 ## What this project is
 Original empirical research on ES futures tick data from CME Globex.
-Studying whether Trade Flow Imbalance (TFI) predicts short-term
-returns in ES futures, and whether this predictive relationship is
-stronger during periods of elevated information asymmetry —
-characterized by high price impact, normal market liquidity, and
-absence of known uninformed-flow events.
+Studying the regime-conditioned price impact of Trade Flow
+Imbalance (TFI) in ES futures. The primary hypothesis — that TFI
+predicts next-bar returns more strongly in high-information-
+asymmetry periods — produced a null result (β₃ = 0.0001, p = 0.570).
+The validated contribution is a real-time regime detector that
+quantifies adverse selection amplification (contemporaneous β₃ =
+0.0015, z = 7.214, p < 0.001) and confirms ES futures incorporate
+regime-conditioned order flow within one 1-minute bar.
 
 Final deliverables:
 - Clean GitHub repository with fully reproducible code
@@ -38,7 +41,7 @@ The project has two layers:
 - Phase 6: Paper writing and code polish
 
 ## Current status
-Phase 3 in progress — Task 1 complete.
+Phase 4 in progress - review, out-of-sample + robustness remaining
 
 Phase 0 Stream A completed:
 - load_day(), load_all_days(), resample_to_bars(),
@@ -88,16 +91,32 @@ Phase 2 completed:
 - paper/phase2_development.md complete
 - PAPER.md Sections 3 and 4 complete
 
-Phase 3 Task 1 completed:
-- src/signal_construction.py complete — compute_lambda,
-  compute_roll_spread, compute_arrival_rate,
-  compute_regime_score, compute_exclusion_mask
-- src/test_signals.py complete — end-to-end sanity checks
-- Key confirmed stats: exclusion mask 7,487 bars (2.1%);
-  RegimeScore 55,171 non-NaN bars; lambda NaN rate 31.5%
-  in core RTH from zero-variance signed flow (not warmup)
-- Roll spread day-boundary fix applied
-- PAPER.md Section 4.2 limitations updated
+Phase 3 completed:
+- src/signal_construction.py: compute_lambda, compute_roll_spread,
+  compute_arrival_rate, compute_regime_score, compute_exclusion_mask
+- src/plot_signals.py: 16 exploratory component plots + 3
+  TFI-by-regime plots saved to results/phase3/
+- src/test_signals.py: end-to-end sanity checks
+- Key stats: exclusion mask 7,487 bars (2.1%); RegimeScore 55,171
+  non-NaN RTH bars; lambda NaN rate 31.5% from zero-variance flow
+- Exploratory finding: contemporaneous TFI slope 1.87x larger in
+  high-regime — confirmed as regime detector validation, not
+  independent contribution
+
+Phase 4 completed:
+- src/formal_analysis.py: full regression pipeline
+- N = 53,787 regression bars, 169 trading days
+- Primary result: β₃ = 0.0001, p = 0.570 at T+1 — null result
+- Contemporaneous: β₃ = 0.0015, z = 7.214, p < 0.001 —
+  significant but partially circular (lambda in RegimeScore)
+- Horizon: no regime interaction at T+5 or T+15
+- Subsample: null result consistent across May-Sep and Oct-Dec
+- Transaction cost: contemporaneous signal survives round-trip
+  costs at p75 high-regime TFI (net 0.702 bps after 0.774 bps
+  round-trip); T+1 does not
+- All outputs saved to results/phase4/
+- PAPER.md Sections 4.5, 4.6, 5 updated; phase2_development.md
+  updated
 
 ---
 
@@ -106,9 +125,47 @@ quant-research-project/
     /data        — data documentation only, no raw files
     /notebooks   — exploratory Jupyter notebooks (not started)
     /src         — clean reusable Python modules
-        data_loader.py  — all data loading, cleaning, signal,
-                          stats, and plotting functions
-    /results     — saved figures and daily_stats.csv
+        data_loader.py       — data loading, cleaning, stats, plotting
+        formal_analysis.py   — Phase 4 formal regression analysis
+        plot_signals.py      — Phase 3 component plots
+        signal_construction.py — signal and regime score functions
+        test_load.py         — Phase 1 data loading and stats checks
+        test_signals.py      — sanity checks for signal outputs
+    /results
+        /phase1              — Phase 1 outputs
+            daily_stats.csv
+            daily_volume_over_time.png
+            intraday_trade_arrival.png
+            intraday_volume.png
+            intraday_volatility.png
+            trade_size_distribution.png
+        /phase3              — Phase 3 exploratory plots
+            lambda_timeseries.png
+            lambda_intraday.png
+            lambda_distribution.png
+            lambda_individual_days.png
+            roll_timeseries.png
+            roll_intraday.png
+            roll_distribution.png
+            roll_individual_days.png
+            arrival_timeseries.png
+            arrival_intraday.png
+            arrival_distribution.png
+            arrival_individual_days.png
+            regime_score_timeseries.png
+            regime_score_intraday.png
+            regime_score_distribution.png
+            regime_score_individual_days.png
+        /phase4              — Phase 4 formal analysis outputs
+            primary_regression.txt
+            contemporaneous_regression.txt
+            horizon_t5_regression.txt
+            horizon_t15_regression.txt
+            subsample_full_regression.txt
+            subsample_may_sep_regression.txt
+            subsample_oct_dec_regression.txt
+            key_coefficients.csv
+            transaction_cost_analysis.txt
     /paper       — working paper and research documents
         PAPER.md              — formal working paper draft
         phase2_development.md — Phase 2 research development
@@ -159,6 +216,14 @@ Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t +
                β₃·(TFI_t × RegimeScore_t) +
                β₄·Return_t + β₅·TFI_{t-1} + ε_t
 β₃ is the primary test statistic.
+Formal result: β₃ = 0.0001, p = 0.570 — null result.
+
+**Contemporaneous characterization:**
+Return_t = α + β₁·TFI_t + β₂·RegimeScore_t +
+           β₃·(TFI_t × RegimeScore_t) +
+           β₅·TFI_{t-1} + ε_t
+Validates regime detector — not a predictive test.
+Formal result: β₃ = 0.0015, z = 7.214, p < 0.001.
 
 **Key papers:**
 - Kyle (1985) — Econometrica — lambda and informed trading

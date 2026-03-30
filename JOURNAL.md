@@ -102,7 +102,7 @@ produce a clean 2x2 multi-panel matplotlib figure saved to
 
 ---
 
-## 2026-03-25
+## 2026-03-26
 
 **Session Summary:**
 - Wrote plot_overview() function in src/data_loader.py and generated 
@@ -176,7 +176,7 @@ Organize NOTES.md with logical ordering and clear heading.
 
 ---
 
-## 2026-03-26
+## 2026-03-27
 
 **Session Summary:**
 - Wrote first three main sections of paper/phase2_develpoment.md by
@@ -240,7 +240,7 @@ Then move onto completing the rest of phase2_development.md.
 
 ---
 
-## 2026-03-27
+## 2026-03-28
 
 **Session Summary:**
 - Completed paper/phase2_development.md — all sections finalized
@@ -315,7 +315,7 @@ the full in-sample dataset.
 
 ---
 
-## 2026-03-28
+## 2026-03-29
 
 **Session Summary:**
 - Built src/signal_construction.py with five functions: compute_lambda,
@@ -393,5 +393,244 @@ None
    time series across full sample, intraday average by time
    of day, distribution histogram, behavior on individual
    days (high-vol, low-vol, announcement, normal).
+
+---
+
+## 2026-03-30 (Phase 3 - C)
+
+**Session Summary:**
+- Finalized Task 1 of Phase 3 (Roll failure analysis + limitations).
+- Completed Task 2: generated 16 exploratory plots (lambda, Roll,
+  arrival rate, RegimeScore) saved to results/phase3/.
+- Completed Tasks 3 and 5: TFI-by-regime plots and regime detector
+  validation diagnostics.
+- Reframed primary research question (see findings).
+- Updated PAPER.md Sections 4.1, 4.4, 4.5 and phase2_development.md.
+
+**Findings:**
+
+Roll failure analysis (Task 1):
+- Roll fails in one-sided flow (informed conditions) but does not
+  reverse regime signal — lambda and arrival rate still push
+  RegimeScore correctly. Effect is quantitative (lower magnitude),
+  not qualitative (wrong direction).
+- Contrast: lambda zero-variance NaN is genuinely uninformative
+  (no directed flow), so NaN exclusion is justified. Roll failure
+  in one-sided markets is more significant because it occurs during
+  genuinely informed conditions.
+
+16-plot exploratory analysis (Task 2):
+
+Filtering decisions applied to all plots: distributions filter to
+RTH bars only and exclude zeros (warmup/Roll-failure/exclusion-mask
+artifacts). Lambda distribution keeps negatives (real signal).
+Timeseries filter to trading days only. Individual days constrained
+to 09:30-16:00 Eastern.
+
+Lambda:
+- Distribution: sharply peaked near zero, slight positive skew,
+  tails to ±0.20. Three timeseries spikes at late June (~0.095),
+  early September (~0.085), late December (~0.140) — all macro
+  events. Baseline ~0.005-0.015.
+- Intraday: flat after 30-bar warmup (~0.0042-0.0048), midday dip
+  (~0.0025 at 12:00-12:30), afternoon recovery, sharp close drop
+  consistent with MOC uninformed flow.
+- Individual days: high-vol (±0.06) vs low-vol (0.001-0.005) is
+  10-20x difference. FOMC day shows large negative lambda pre-
+  announcement (13:00-14:00) — participants reducing directional
+  exposure before statement.
+
+Roll Spread:
+- Distribution: heavily right-skewed, spike near zero from Roll
+  failure in one-sided markets (genuine zero estimates, not NaN).
+- Intraday: counterintuitive wave pattern (peaks ~11:30 and
+  14:30-15:30) is artifact of directional price moves inflating
+  serial covariance — not a genuine liquidity signal. Rolling
+  z-score partially corrects.
+- Timeseries spikes match lambda exactly (late June ~75, Sep ~85,
+  Dec ~90) — correlated, reducing independence as regime indicators.
+- Individual days: high-vol Roll 20-63 pts vs 0-3.5 on all other
+  days. Low-vol values (0-1.4) plausible for ES true spread.
+
+Trade Arrival Rate:
+- Distribution (RTH, >0): right-skewed, peak 300-500 trades/min,
+  tail to ~4,000+.
+- Intraday: modified inverse-J — open ~1,700, midday ~400-500,
+  close spike ~2,000. Open lower than Phase 1 (~4,000) due to
+  5-bar rolling mean smoothing.
+- Individual days: FOMC step change at exactly 14:00 reaching
+  ~4,300 trades/min validates announcement date/time.
+
+RegimeScore:
+- Distribution (RTH, >0): clean U-shape with trough 0.4-0.6 —
+  logistic transformation pushing toward extremes as intended.
+- Intraday: zero 9:30-10:30 (warmup), jumps to ~0.53 at 10:30,
+  flat ~0.40-0.60 through core hours, drops to zero at 15:50
+  (close exclusion). FOMC exclusion visible as flat zero
+  ~13:30-14:30 on 2025-07-30.
+- Timeseries: daily mean 0.37-0.58, no structural trend — rolling
+  z-score adapting correctly across both activity regimes.
+- Individual days: rapid bar-by-bar oscillation between 0 and 1 on
+  all days — correct behavior. Detector captures episodic informed
+  trading at 1-min level, not sustained day-level regimes.
+
+Cross-component: Roll and lambda spike together at all three macro
+events — driven by the same price moves, reducing their independence.
+Acknowledged limitation of the composite score.
+
+TFI-by-regime plots (Task 3) — 53,967 aligned bars:
+- High-regime: 23,602 (43.7%), Low-regime: 30,365 (56.3%).
+- T+1 scatter: high-regime slope = -1.52e-04, low-regime = +1.94e-04.
+  Sign reversal — high-regime mean reverts, low-regime momentum.
+- TFI distributions nearly identical across regimes — detector
+  selects on market state, not TFI magnitude.
+- ACF: high-regime decays fast (below CI by lag 7-8), low-regime
+  slow (elevated through lag 12) — consistent with faster vs slower
+  information incorporation.
+
+Regime detector validation (Task 5):
+- Contemporaneous slope: high = 1.80e-03, low = 0.97e-03. 1.87x
+  amplification confirms higher order flow informativeness in
+  high-regime. Partially tautological — lambda in RegimeScore
+  directly measures price impact. Not the primary contribution.
+- Realized volatility: high std = 0.000998, low std = 0.002229.
+  Paradox explained by exclusion mask — announcement/roll windows
+  (highest volatility) zeroed into low-regime by construction.
+  Decile analysis confirms detector directionally correct: decile 8
+  std = 0.001172 elevated above middle deciles (~0.000900). Decile 0
+  std = 0.003508 = exclusion mask zeros, not genuine low-regime.
+- Multi-horizon slopes: mean reversion concentrated at lag 1. Lags
+  2+ tiny and inconsistent. Information incorporated within 1-2 min.
+
+Research question reframed: the primary finding is the sign reversal
+at T+1, not the contemporaneous amplification. Reframe: "does the
+TFI-return relationship reverse sign across regimes — momentum in
+low-regime, mean reversion in high-regime — consistent with fast
+information incorporation creating overshoot at high price-impact
+moments?"
+
+**Bugs fixed (plot_signals.py):**
+- Non-trading day zeros in timeseries → ts_filter parameter.
+- Non-RTH zeros in distributions → dist_filter parameter (lambda:
+  none; Roll/arrival/RegimeScore: >0).
+- Individual days UTC x-axis → tz_convert + tz_localize(None) +
+  set_xlim(09:30, 16:00).
+- Intraday tick overlap → min(350, n-41) / min(390, n-1).
+- 2025-09-15 and 2025-09-17 flat zero RegimeScore → both in
+  September roll exclusion window (ESU5→ESZ5 roll 2025-09-18).
+  Replaced with 2025-06-13 (high-vol) and 2025-07-30 (FOMC).
+
+**Open questions:**
+- Does lag-1 sign reversal survive formal testing with Newey-West
+  SE and full controls in Phase 4?
+- Is mean reversion large enough to exceed transaction costs?
+
+---
+
+## 2026-03-30 (Phase 4 - IP)
+
+**Session Summary:**
+- Completed Phase 4 formal statistical analysis.
+- Wrote src/formal_analysis.py — data preparation, primary
+  regression, contemporaneous regression, horizon analysis,
+  subsample stability, transaction cost analysis.
+- Saved all outputs to results/phase4/.
+- Reframed research contribution based on formal results.
+- Updated PAPER.md Sections 4.1, 4.5, 4.6, 5 and
+  phase2_development.md to reflect final findings.
+
+**Findings:**
+
+Regression sample: N = 53,787 bars after NaN/warmup/boundary
+removal. High-regime: 23,601 (43.9%), Low-regime: 30,186 (56.1%).
+Date range: 2025-05-01 10:30 to 2025-12-30 15:58. 169 trading days.
+
+Primary regression (T+1):
+- β₃ (tfi_x_regime) = 0.0001, z = 0.568, p = 0.570. Not
+  significant. Regime does not amplify TFI's predictive power
+  for next-bar returns.
+- β₁ (tfi) = 0.0007, z = 5.121, p < 0.001. Unconditional TFI
+  effect significant — consistent with Cont et al. (2014) — but
+  does not strengthen in high-regime conditions.
+- lag_return = -0.489, p < 0.001. Dominant mean reversion
+  driving R² = 0.236 — microstructure bid-ask bounce, not alpha.
+
+Contemporaneous regression (T+0):
+- β₃ (tfi_x_regime) = 0.0015, z = 7.214, p < 0.001. Highly
+  significant. At mean high-regime score (0.788), TFI slope =
+  0.0007 + 0.0015 × 0.788 = 0.00188 — 2.7x amplification.
+- This is a validation finding, not a predictive finding.
+  Kyle's lambda is built into RegimeScore and is itself a
+  contemporaneous price impact measure — partial circularity
+  acknowledged. Serves as confirmation the regime detector
+  measures what it claims to measure.
+
+Horizon analysis:
+- T+5: β₃ = -0.000027, p = 0.902. Not significant.
+- T+15: β₃ = -0.000108, p = 0.659. Not significant.
+- Unconditional β₁ remains significant at all horizons
+  (~0.0007-0.0008, p < 0.001) but does not vary with regime.
+- Conclusion: information incorporation in ES futures is complete
+  within one 1-minute bar in high-regime conditions.
+
+Subsample stability:
+- May-Sep: β₃ = 0.0001, p = 0.704. Oct-Dec: β₃ = 0.0001,
+  p = 0.639. Null result consistent across both activity regimes.
+  Unconditional β₁ stable at 0.00064-0.00073 across subsamples.
+
+Transaction cost analysis (contemporaneous spec):
+- Mean ES price: 6,460.55. One-way cost: 0.387 bps.
+  Round-trip: 0.774 bps.
+- At p75 high-regime TFI (0.073): gross = 1.476 bps,
+  net round-trip = 0.702 bps. Positive after costs.
+- Break-even TFI (round-trip): 0.031 at mean high-regime
+  RegimeScore of 0.788. ~75% of high-regime bars clear this.
+- T+1 spec does not survive round-trip costs even if significant.
+
+Final research framing:
+- Primary hypothesis (T+1 predictability): null result.
+  β₃ not significant. ES futures incorporate regime-conditioned
+  order flow within one 1-minute bar.
+- Secondary characterization (contemporaneous price impact):
+  significant but partially circular. Primary value is as
+  regime detector validation and market maker input.
+- Key contribution: validated real-time regime detector for ES
+  futures, quantified adverse selection amplification (2.7x at
+  mean high-regime), confirmed information incorporation speed.
+- Open questions answered from 3/30: sign reversal at T+1 did
+  not survive formal testing with controls. Mean reversion was
+  an artifact of unconditional exploratory slopes.
+
+**Open questions:**
+- Do robustness checks (binary regime dummy, VPIN, window
+  lengths, skip-bar) change any conclusions?
+- Out-of-sample validation on 2026 held-out data.
+
+**Next step:**
+Next couple days are busy (school wise), but the next couple
+full work sessions should be analysis, not new work.
+- Review all of Phase 3 and 4 findings and decisions made and
+  try to find a new angle of research; null results are fine,
+  but push harder to see if you can make any more real findings.
+- Only until fully satisfied / path has been relatively exhausted,
+  then move onto Phase 4 out-of-sample testing + robustness checks.
+    - Very important to spend time here, because once out-of-sample 
+      is used, theres no turning back.
+
+---
+
+## 2026-03-31
+
+**Session Summary:**
+- 
+
+**Findings:**
+
+
+**Open questions:**
+
+
+**Next step:**
+
 
 ---
