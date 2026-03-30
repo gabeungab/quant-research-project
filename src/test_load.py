@@ -5,3 +5,7 @@ df = load_all_days("/Users/gabeungab/Desktop/Quant Research Project/raw-data/GLB
 df_clean = remove_outliers(df)
 daily = compute_daily_stats(df_clean)
 plot_phase1(df_clean, daily)
+
+daily = compute_daily_stats(df_clean)
+daily.to_csv('results/daily_stats.csv')
+print("Saved daily_stats.csv")
