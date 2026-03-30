@@ -43,7 +43,9 @@ def compute_lambda(df, window=30):
 def compute_roll_spread(df, window=30):
     """
     Estimate the Roll (1984) spread via the rolling serial covariance
-    of consecutive 1-minute bar price changes.
+    of consecutive 1-minute bar price changes. Day boundary price changes
+    are nulled out to prevent overnight gaps from contaminating the
+    serial covariance estimate.
 
     Parameters
     ----------
@@ -59,16 +61,20 @@ def compute_roll_spread(df, window=30):
         2 * sqrt(max(0, -cov(delta_p_t, delta_p_{t-1}))).
     """
     df = df.set_index('ts_event_et')
-
     closes = df['price'].resample('1min').last()
+
     delta_p = closes.diff()
+
+    # Null out day-boundary price changes to prevent overnight gap
+    # contamination of the serial covariance estimate
+    dates = pd.Series(closes.index.date, index=closes.index)
+    day_boundary = dates != dates.shift(1)
+    delta_p[day_boundary] = float('nan')
 
     cov_serial = delta_p.rolling(window=window, min_periods=window).cov(
         delta_p.shift(1)
     )
-
     roll_series = 2 * np.sqrt((-cov_serial).clip(lower=0))
-
     return roll_series
 
 
@@ -155,17 +161,17 @@ def compute_exclusion_mask(bars, announcement_dates):
     """
     Build a boolean exclusion mask over the 1-minute bar index, marking
     three categories of contaminated observations: the final 10 minutes
-    of each RTH session (15:50-16:00 ET), a +- 30-minute window around
+    of each RTH session (15:50-16:00 ET), a ±30-minute window around
     each macro announcement, and contract roll dates plus three preceding
-    trading days.
+    trading days. All exclusions are restricted to RTH bars only.
 
     Parameters
     ----------
     bars : pd.DataFrame or pd.Series
         1-minute bar DataFrame/Series indexed by ts_event_et.
     announcement_dates : list of pd.Timestamp
-        Timezone-aware announcement datetimes (Eastern). Each triggers
-        a ±30-minute exclusion window.
+        Announcement datetimes (Eastern). Each triggers a ±30-minute
+        exclusion window.
 
     Returns
     -------
@@ -175,23 +181,35 @@ def compute_exclusion_mask(bars, announcement_dates):
     index = bars.index
     mask = pd.Series(False, index=index)
 
-    # 1. Final 10 minutes of each RTH session (15:50-16:00 ET)
-    cutoff_time = pd.Timestamp('15:50').time()
-    mask |= pd.Series(index.time >= cutoff_time, index=index)
+    rth_open = pd.Timestamp('09:30').time()
+    rth_close = pd.Timestamp('16:00').time()
+    is_rth = pd.Series(
+        (index.time >= rth_open) & (index.time <= rth_close),
+        index=index
+    )
 
-    # 2. ±30 minutes around each macro announcement
+    # Final 10 minutes of each RTH session (15:50-16:00 ET)
+    cutoff_time = pd.Timestamp('15:50').time()
+    mask |= (is_rth & pd.Series(index.time >= cutoff_time, index=index))
+
+    # ±30 minutes around each macro announcement — RTH only
     for ann_dt in announcement_dates:
         window_start = ann_dt - pd.Timedelta(minutes=30)
         window_end = ann_dt + pd.Timedelta(minutes=30)
-        mask |= (index >= window_start) & (index <= window_end)
+        mask |= (
+            (index >= window_start) &
+            (index <= window_end) &
+            is_rth
+        )
 
-    # 3. Contract roll dates and 3 preceding trading days
+    # Contract roll dates and 3 preceding trading days — RTH only
     index_dates = pd.Series(index.date, index=index)
     for roll_date in ROLL_DATES:
         roll_start = (roll_date - pd.offsets.BDay(3)).date()
-        mask |= (
+        in_roll_window = (
             (index_dates >= roll_start) &
             (index_dates <= roll_date.date())
         )
+        mask |= (in_roll_window & is_rth)
 
     return mask
