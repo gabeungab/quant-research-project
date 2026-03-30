@@ -90,7 +90,21 @@ def print_series_stats(name, s):
     print(f"  NaN count  : {s.isna().sum()}")
 
 print_series_stats("Kyle's lambda",      lambda_series)
+rth_mask_check = (
+    (lambda_series.index.time >= pd.Timestamp('09:30').time()) &
+    (lambda_series.index.time <= pd.Timestamp('16:00').time())
+)
+print(f"  RTH NaN count  : {lambda_series[rth_mask_check].isna().sum()}")
+print(f"  RTH valid count: {lambda_series[rth_mask_check].notna().sum()}")
+
 print_series_stats("Roll spread",        roll_series)
+rth_mask_check = (
+    (lambda_series.index.time >= pd.Timestamp('09:30').time()) &
+    (lambda_series.index.time <= pd.Timestamp('16:00').time())
+)
+print(f"  RTH NaN count  : {lambda_series[rth_mask_check].isna().sum()}")
+print(f"  RTH valid count: {lambda_series[rth_mask_check].notna().sum()}")
+
 print_series_stats("Trade arrival rate", arrival_series)
 
 # ── Exclusion mask breakdown ──────────────────────────────────────────────────

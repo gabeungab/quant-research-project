@@ -137,12 +137,11 @@ flow, estimated from a rolling OLS regression of price changes on
 signed order flow over a 30-minute window updated each minute.
 High lambda indicates market makers are updating quotes aggressively
 in response to order flow — consistent with their inference that
-the flow may be informed.
-
-However, high lambda alone is insufficient: elevated price impact 
-can equally reflect thin markets, market stress, or mechanical order 
-flow rather than informed trading. Two additional components and
-exclusion windows rule out these alternative explanations.
+the flow may be informed. However, high lambda alone is
+insufficient: elevated price impact can equally reflect thin
+markets, market stress, or mechanical order flow rather than
+informed trading. Two additional components and exclusion windows
+rule out these alternative explanations.
 
 **Roll (1984) spread estimate** measures bid-ask tightness from
 the serial covariance of consecutive trade price changes. When a
@@ -150,7 +149,11 @@ bid-ask spread exists, prices alternate between bid and ask,
 producing negative serial covariance whose magnitude is directly
 related to spread size. Low Roll spread confirms normal market
 tightness, ruling out structural illiquidity as the source of
-elevated lambda.
+elevated lambda. Roll spread values at 1-minute resolution are
+inflated relative to the true bid-ask spread due to large intraday
+price moves dominating the serial covariance; however, Roll enters
+the regime score only through its rolling z-score, so the absolute
+level is irrelevant — only relative tightness across bars matters.
 
 **Trade arrival rate** measures trades per minute over a 5-minute
 rolling window, proxying market depth and active liquidity
@@ -180,28 +183,23 @@ allowing the score to adapt to the two distinct activity regimes
 identified in Section 3.3. All rolling estimates use only past
 data — no lookahead bias is introduced.
 
-Three sources of residual misclassification are acknowledged.
-Market maker inventory pressure and mechanical order clustering
-can produce elevated lambda in liquid markets without informed
-trading. The Roll spread estimator is unreliable in strongly
-one-sided markets as the bid-ask bounce disappears; however, 
-this weakens rather than reverses the regime signal, as lambda 
-and arrival rate continue to reflect informed trading conditions 
-correctly.
-
-Kyle's lambda is undefined when signed order flow has zero variance
-across the estimation window — periods where buying and selling
-pressure are perfectly balanced and no directional information
-content is detectable. Approximately 31% of core RTH bars fall
-into this category and are excluded from regime detection. These
-bars are self-selecting as uninformative: the absence of
-directional flow is itself evidence against an informed trading
-regime.
-
-Additionally, the lambda 30-minute rolling window requires a warmup
-period at the start of each trading session, excluding the first
-30 minutes of each day from regime detection — though this is
-subsumed by the zero-variance exclusion, as confirmed empirically.
+Four sources of residual misclassification or signal attenuation
+are acknowledged. Market maker inventory pressure and mechanical
+order clustering can produce elevated lambda in liquid markets
+without informed trading. The Roll spread estimator is unreliable
+in strongly one-sided markets as the bid-ask bounce disappears —
+precisely the high-lambda informed trading conditions of interest;
+in these conditions Roll contributes approximately zero to the
+composite score rather than a negative value, reducing RegimeScore
+magnitude without reversing the signal direction, with lambda and
+arrival rate remaining the primary drivers. Kyle's lambda is
+undefined when signed order flow has zero variance across the
+estimation window, excluding ~31% of core RTH bars from regime 
+detection; these bars are self-selecting as uninformative, as the 
+absence of directional flow is itself evidence against an informed 
+trading regime. Finally, the rolling window requires a warmup period 
+at the start of each session, though this is empirically subsumed by 
+the zero-variance exclusion.
 
 ### 4.3 Exclusion Windows
 
