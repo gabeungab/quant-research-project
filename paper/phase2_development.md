@@ -343,12 +343,12 @@ power reflects noise that reverts quickly.
 
 ### Primary Question
 
-Does trade flow imbalance (TFI) predict short-term returns in 
-ES futures at the one-minute horizon — and more importantly, 
-is this predictive relationship significantly stronger during
-periods of elevated information asymmetry, characterized by
-high price impact, normal market liquidity, and absence of
-known uninformed-flow events?
+Does the relationship between TFI and subsequent returns differ
+systematically across information asymmetry regimes — specifically,
+does TFI exhibit short-term momentum in low-information-asymmetry
+periods and mean reversion in high-information-asymmetry periods,
+consistent with fast information incorporation creating overshoot
+at high price-impact moments?
 
 ### Secondary Question
 
@@ -481,6 +481,22 @@ Where:
   the model
 
 Newey-West standard errors, maxlags=5.
+
+**Secondary test (contemporaneous specification):**
+
+Motivated by exploratory Phase 3 findings showing the TFI-return
+slope is 1.87x larger within the same bar in high-regime periods,
+a contemporaneous regression is added as a secondary test:
+
+Return_t = α + β₁·TFI_t + β₂·RegimeScore_t +
+           β₃·(TFI_t × RegimeScore_t) +
+           β₄·Return_{t-1} + β₅·TFI_{t-1} + ε_t
+
+Note: the contemporaneous β₃ is partially tautological because
+lambda (built into RegimeScore) directly measures price impact.
+The more original contribution is the sign reversal in the T+1
+forward specification — mean reversion in high-regime versus
+momentum in low-regime.
 
 **Effect size decomposition:**
 
