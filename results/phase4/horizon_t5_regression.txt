@@ -1,0 +1,29 @@
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:           fwd_return_5   R-squared:                       0.218
+Model:                            OLS   Adj. R-squared:                  0.218
+Method:                 Least Squares   F-statistic:                     550.4
+Date:                Mon, 30 Mar 2026   Prob (F-statistic):               0.00
+Time:                        17:00:59   Log-Likelihood:             2.6408e+05
+No. Observations:               52942   AIC:                        -5.282e+05
+Df Residuals:                   52936   BIC:                        -5.281e+05
+Df Model:                           5                                         
+Covariance Type:                  HAC                                         
+================================================================================
+                   coef    std err          z      P>|z|      [0.025      0.975]
+--------------------------------------------------------------------------------
+const        -1.235e-05   1.96e-05     -0.631      0.528   -5.07e-05     2.6e-05
+tfi              0.0007      0.000      4.958      0.000       0.000       0.001
+regime_score  2.217e-05      3e-05      0.739      0.460   -3.66e-05    8.09e-05
+tfi_x_regime -2.735e-05      0.000     -0.123      0.902      -0.000       0.000
+lag_return      -0.4936      0.009    -52.257      0.000      -0.512      -0.475
+lag_tfi      -8.724e-05   6.11e-05     -1.428      0.153      -0.000    3.25e-05
+==============================================================================
+Omnibus:                    11909.717   Durbin-Watson:                   1.481
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):           535431.848
+Skew:                          -0.209   Prob(JB):                         0.00
+Kurtosis:                      18.574   Cond. No.                         627.
+==============================================================================
+
+Notes:
+[1] Standard Errors are heteroscedasticity and autocorrelation robust (HAC) using 5 lags and without small sample correction
