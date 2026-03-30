@@ -38,7 +38,7 @@ The project has two layers:
 - Phase 6: Paper writing and code polish
 
 ## Current status
-Phase 2 complete. Phase 3 is next.
+Phase 3 in progress — Task 1 complete.
 
 Phase 0 Stream A completed:
 - load_day(), load_all_days(), resample_to_bars(),
@@ -86,7 +86,18 @@ Phase 2 completed:
   windows (15/60-min lambda/Roll, 2/10-min arrival rate),
   forward return skip, daily VPIN as alternative regime indicator
 - paper/phase2_development.md complete
-- PAPER.md Section 4 (Signal and Empirical Design) complete
+- PAPER.md Sections 3 and 4 complete
+
+Phase 3 Task 1 completed:
+- src/signal_construction.py complete — compute_lambda,
+  compute_roll_spread, compute_arrival_rate,
+  compute_regime_score, compute_exclusion_mask
+- src/test_signals.py complete — end-to-end sanity checks
+- Key confirmed stats: exclusion mask 7,487 bars (2.1%);
+  RegimeScore 55,171 non-NaN bars; lambda NaN rate 31.5%
+  in core RTH from zero-variance signed flow (not warmup)
+- Roll spread day-boundary fix applied
+- PAPER.md Section 4.2 limitations updated
 
 ---
 

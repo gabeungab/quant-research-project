@@ -318,18 +318,80 @@ the full in-sample dataset.
 ## 2026-03-28
 
 **Session Summary:**
-- 
+- Built src/signal_construction.py with five functions: compute_lambda,
+  compute_roll_spread, compute_arrival_rate, compute_regime_score,
+  compute_exclusion_mask.
+- Built src/test_signals.py to sanity check all outputs end-to-end.
+- Diagnosed and fixed three bugs in signal_construction.py:
+  exclusion mask was incorrectly flagging non-RTH bars (119k instead
+  of ~1.7k close bars), Roll spread was contaminated by overnight
+  gaps at day boundaries, and compute_regime_score was not aligning
+  the exclusion mask index before applying it.
+- Investigated lambda NaN rate within RTH hours.
 
 **Findings:**
+Signal construction confirmed working — key output stats:
+- Kyle's lambda: mean 0.0042, std 0.0088, range [-0.19, 0.14]
+- Roll spread: mean 5.59 index points, std 14.05 — values are
+  inflated at 1-minute resolution but used only as relative
+  ranking via z-score, not absolute spread estimate
+- Trade arrival rate: mean 168 trades/min, max 8,487 — consistent
+  with Phase 1 intraday patterns
+- Exclusion mask: 7,487 bars excluded (2.1% of total) — within
+  expected range (~1,690 close + ~1,140 announcement + ~6,240 roll)
+- RegimeScore: 55,171 non-NaN bars; 42.8% above 0.50,
+  25.9% above 0.75; 13.6% set to zero by exclusion mask
 
+Lambda NaN rate investigation:
+- 31.5% of core RTH bars (10:00-15:50) have NaN lambda
+- Confirmed entirely from zero-variance signed flow, NOT from
+  window warmup — window=15 and window=30 produce identical NaN
+  counts, ruling out warmup as the cause
+- Zero-variance bars are self-selecting as uninformative: perfect
+  balance between buyer and seller flow is itself evidence against
+  an informed trading regime
+- 55,171 valid RegimeScore bars across 169 days (~326 bars/day,
+  ~5.4 hours of coverage) — sufficient for rigorous analysis
+
+Roll spread limitations noted:
+- Values inflated (~22 ticks mean vs ~1 tick true spread) due to
+  1-minute resolution and large intraday price moves
+- Day boundary fix applied — overnight gaps no longer contaminate
+  serial covariance estimate
+- Used only as relative indicator via z-score; absolute level
+  does not affect regime score construction
+
+Regime detector theoretical scope clarified:
+- Operates most reliably during stable midday conditions where
+  lambda is estimable and Roll is not in one-sided failure
+- First 30 minutes of each session excluded by warmup (subsumed
+  by zero-variance exclusion as confirmed empirically)
+- Inventory pressure and mechanical clustering remain as
+  unaddressable limitations biasing against finding results
 
 **Open questions:**
 None
 
 **AI Usage:**
-- 
+- Claude helped diagnose exclusion mask over-exclusion bug
+  (RTH filter missing from all three exclusion categories).
+- Claude helped diagnose lambda NaN source (zero-variance
+  vs warmup) via window=15 vs window=30 comparison.
+- Claude helped interpret Roll spread inflated values and
+  confirm z-scoring makes absolute level acceptable.
 
 **Next step:**
-
+1. Review Task 1 findings before proceeding — rerun
+   test_signals.py and verify all key stats match findings
+   above + limitations. Specifically confirm:
+   - Exclusion mask total: ~7,487 bars
+   - RegimeScore non-NaN bars: ~55,171
+   - Lambda NaN rate core RTH: ~31.5%
+   - window=15 and window=30 lambda NaN counts are identical
+2. Task 2 (Phase 3): Plot each component individually —
+   lambda, Roll spread, arrival rate, RegimeScore. For each:
+   time series across full sample, intraday average by time
+   of day, distribution histogram, behavior on individual
+   days (high-vol, low-vol, announcement, normal).
 
 ---
