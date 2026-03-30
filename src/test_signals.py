@@ -35,28 +35,26 @@ bars = df_indexed['price'].resample('1min').count()
 
 # ── Define macro announcement datetimes (Eastern) ────────────────────────────
 # FOMC, CPI, and NFP releases for in-sample period 2025-05-01 to 2025-12-30.
-# Verified against official Fed/BLS release calendars. Oct NFP and CPI not
-# published due to 2025 government shutdown — replaced with delayed releases.
+# Verified against official Fed/BLS release calendars.
 
 TZ = "America/New_York"
 
 announcement_dates = [
-    # FOMC statement release (2:00 PM ET)
+    # FOMC release (2:00 PM ET)
     pd.Timestamp("2025-05-07 14:00", tz=TZ),
     pd.Timestamp("2025-06-18 14:00", tz=TZ),
     pd.Timestamp("2025-07-30 14:00", tz=TZ),
     pd.Timestamp("2025-09-17 14:00", tz=TZ),
     pd.Timestamp("2025-10-29 14:00", tz=TZ),
     pd.Timestamp("2025-12-10 14:00", tz=TZ),
-    # CPI release (8:30 AM ET) — Oct not published; Nov+Oct combined Dec 18
+    # CPI release (8:30 AM ET)
     pd.Timestamp("2025-05-13 08:30", tz=TZ),
     pd.Timestamp("2025-06-11 08:30", tz=TZ),
     pd.Timestamp("2025-07-15 08:30", tz=TZ),
     pd.Timestamp("2025-08-12 08:30", tz=TZ),
     pd.Timestamp("2025-09-10 08:30", tz=TZ),
     pd.Timestamp("2025-12-18 08:30", tz=TZ),
-    # NFP release (8:30 AM ET) — Oct not published; Sep delayed Nov 20;
-    # Oct+Nov combined Dec 16; Jul 3 (moved from Jul 4 holiday)
+    # NFP release (8:30 AM ET)
     pd.Timestamp("2025-05-02 08:30", tz=TZ),
     pd.Timestamp("2025-06-06 08:30", tz=TZ),
     pd.Timestamp("2025-07-03 08:30", tz=TZ),

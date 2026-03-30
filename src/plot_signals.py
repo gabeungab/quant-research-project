@@ -209,50 +209,6 @@ def plot_tfi_by_regime(tfi_df, returns_df, regime_score,
 
     print(f"  High-regime bars: {len(high):,}   Low-regime bars: {len(low):,}")
 
-    # Add diagnostics here:
-    # ── Regime detector validation ────────────────────────────────────────────────
-    print("\n  --- Regime Detector Validation ---")
-
-    # Check 1: Realized volatility by regime
-    high_vol = high['fwd_return'].std()
-    low_vol  = low['fwd_return'].std()
-    print(f"  High-regime return std: {high_vol:.6f}")
-    print(f"  Low-regime return std:  {low_vol:.6f}")
-    print(f"  Ratio (high/low):       {high_vol/low_vol:.4f}")
-
-    df['regime_decile'] = pd.qcut(df['regime_score'], 10, labels=False, duplicates='drop')
-    print("\n  --- Return Std by RegimeScore Decile (0=lowest, 9=highest) ---")
-    print(df.groupby('regime_decile')['fwd_return'].std().to_string())
-
-    # Diagnostic 2: Contemporaneous (same-bar vs. same bar) slope
-    same_bar_return = df['fwd_return'].shift(1)
-    df_contemp = df.copy()
-    df_contemp['same_return'] = same_bar_return
-    df_contemp = df_contemp.dropna()
-
-    print("\n  --- Contemporaneous TFI vs Same-Bar Return ---")
-    for label, subset in [
-        ('High', df_contemp[df_contemp['regime_score'] > 0.5]),
-        ('Low',  df_contemp[df_contemp['regime_score'] <= 0.5])
-    ]:
-        m, _ = np.polyfit(subset['tfi'], subset['same_return'], 1)
-        print(f"  {label} regime contemporaneous slope: {m:.4e}")
-
-    # Diagnostic 3: Multi-horizon forward slopes
-    print("\n  --- TFI Forward Slope by Lag and Regime ---")
-    same_bar = df['fwd_return'].shift(1)
-    for lag in [1, 2, 3, 5, 10, 15]:
-        fwd = same_bar.shift(-lag)
-        df_lag = pd.DataFrame({
-            'tfi': df['tfi'],
-            'fwd': fwd,
-            'rs':  df['regime_score']
-        }).dropna()
-        for label, mask in [('High', df_lag['rs'] > 0.5),
-                            ('Low',  df_lag['rs'] <= 0.5)]:
-            m, _ = np.polyfit(df_lag[mask]['tfi'], df_lag[mask]['fwd'], 1)
-            print(f"  Lag {lag:2d} — {label}: slope = {m:.4e}")
-
     # ── Plot 1: TFI vs forward return, by regime ──────────────────────────────
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
     for ax, subset, label, color in [
