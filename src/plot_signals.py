@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from data_loader import load_all_days, remove_outliers
+from data_loader import load_all_days, remove_outliers, compute_tfi, compute_returns
 from signal_construction import (
     compute_lambda,
     compute_roll_spread,
@@ -175,6 +175,157 @@ def plot_roll(roll_series, save_dir='results/phase3'):
                     dist_filter='positive', ts_filter='positive')
 
 
+def plot_tfi_by_regime(tfi_df, returns_df, regime_score,
+                       save_dir='results/phase3'):
+    """
+    Three plots showing TFI conditional on RegimeScore.
+
+    Plot 1 — Scatter: TFI vs 1-min forward log return, side-by-side
+             for high (>0.5) and low (≤0.5) RegimeScore bars.
+    Plot 2 — Overlapping density histograms of TFI for each regime.
+    Plot 3 — ACF of TFI at lags 1–20 for each regime.
+    """
+    from statsmodels.tsa.stattools import acf
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Handle both Series and DataFrame inputs
+    tfi = tfi_df['tfi'] if isinstance(tfi_df, pd.DataFrame) else tfi_df
+    fwd_return = (
+        returns_df['log_return'] if isinstance(returns_df, pd.DataFrame)
+        else returns_df
+    ).shift(-1)
+
+    df = pd.DataFrame({
+        'tfi':          tfi,
+        'fwd_return':   fwd_return,
+        'regime_score': regime_score,
+    }).dropna()
+
+    print(f"  Combined aligned bars: {len(df):,}")
+
+    high = df[df['regime_score'] > 0.5]
+    low  = df[df['regime_score'] <= 0.5]
+
+    print(f"  High-regime bars: {len(high):,}   Low-regime bars: {len(low):,}")
+
+    # Add diagnostics here:
+    # ── Regime detector validation ────────────────────────────────────────────────
+    print("\n  --- Regime Detector Validation ---")
+
+    # Check 1: Realized volatility by regime
+    high_vol = high['fwd_return'].std()
+    low_vol  = low['fwd_return'].std()
+    print(f"  High-regime return std: {high_vol:.6f}")
+    print(f"  Low-regime return std:  {low_vol:.6f}")
+    print(f"  Ratio (high/low):       {high_vol/low_vol:.4f}")
+
+    df['regime_decile'] = pd.qcut(df['regime_score'], 10, labels=False, duplicates='drop')
+    print("\n  --- Return Std by RegimeScore Decile (0=lowest, 9=highest) ---")
+    print(df.groupby('regime_decile')['fwd_return'].std().to_string())
+
+    # Diagnostic 2: Contemporaneous (same-bar vs. same bar) slope
+    same_bar_return = df['fwd_return'].shift(1)
+    df_contemp = df.copy()
+    df_contemp['same_return'] = same_bar_return
+    df_contemp = df_contemp.dropna()
+
+    print("\n  --- Contemporaneous TFI vs Same-Bar Return ---")
+    for label, subset in [
+        ('High', df_contemp[df_contemp['regime_score'] > 0.5]),
+        ('Low',  df_contemp[df_contemp['regime_score'] <= 0.5])
+    ]:
+        m, _ = np.polyfit(subset['tfi'], subset['same_return'], 1)
+        print(f"  {label} regime contemporaneous slope: {m:.4e}")
+
+    # Diagnostic 3: Multi-horizon forward slopes
+    print("\n  --- TFI Forward Slope by Lag and Regime ---")
+    same_bar = df['fwd_return'].shift(1)
+    for lag in [1, 2, 3, 5, 10, 15]:
+        fwd = same_bar.shift(-lag)
+        df_lag = pd.DataFrame({
+            'tfi': df['tfi'],
+            'fwd': fwd,
+            'rs':  df['regime_score']
+        }).dropna()
+        for label, mask in [('High', df_lag['rs'] > 0.5),
+                            ('Low',  df_lag['rs'] <= 0.5)]:
+            m, _ = np.polyfit(df_lag[mask]['tfi'], df_lag[mask]['fwd'], 1)
+            print(f"  Lag {lag:2d} — {label}: slope = {m:.4e}")
+
+    # ── Plot 1: TFI vs forward return, by regime ──────────────────────────────
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+    for ax, subset, label, color in [
+        (axes[0], high, 'High RegimeScore (>0.5)',   'steelblue'),
+        (axes[1], low,  'Low RegimeScore (\u22640.5)', 'tomato'),
+    ]:
+        # Sample for visual clarity — regression uses full data
+        plot_subset = subset.sample(min(5000, len(subset)), random_state=42)
+        ax.scatter(plot_subset['tfi'], plot_subset['fwd_return'],
+                   alpha=0.15, s=4, color=color, rasterized=True)
+        if len(subset) > 1:
+            m, b = np.polyfit(subset['tfi'], subset['fwd_return'], 1)
+            x_rng = np.linspace(subset['tfi'].min(), subset['tfi'].max(), 200)
+            ax.plot(x_rng, m * x_rng + b, color='black', linewidth=1.5,
+                    label=f'slope = {m:.2e}')
+            ax.legend(fontsize=9)
+        ax.axhline(0, color='gray', linewidth=0.6, linestyle='--')
+        ax.axvline(0, color='gray', linewidth=0.6, linestyle='--')
+        ax.set_title(label)
+        ax.set_xlabel('TFI')
+        ax.set_ylabel('1-min Forward Log Return')
+    fig.suptitle('TFI vs Forward Return by RegimeScore', fontsize=13)
+    fig.tight_layout()
+    fig.savefig(f'{save_dir}/tfi_scatter_by_regime.png',
+                dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print("Saved tfi_scatter_by_regime.png")
+
+    # ── Plot 2: TFI distribution by regime ────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.hist(high['tfi'].values, bins=80, alpha=0.5, density=True,
+            color='steelblue', label='High RegimeScore (>0.5)')
+    ax.hist(low['tfi'].values,  bins=80, alpha=0.5, density=True,
+            color='tomato',    label='Low RegimeScore (\u22640.5)')
+    ax.set_title('TFI Distribution by RegimeScore')
+    ax.set_xlabel('TFI')
+    ax.set_ylabel('Density')
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(f'{save_dir}/tfi_distribution_by_regime.png',
+                dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print("Saved tfi_distribution_by_regime.png")
+
+    # ── Plot 3: TFI ACF by regime ─────────────────────────────────────────────
+    nlags = 20
+    lags  = np.arange(1, nlags + 1)
+
+    high_acf = acf(high['tfi'].values, nlags=nlags, fft=True)[1:]
+    low_acf  = acf(low['tfi'].values,  nlags=nlags, fft=True)[1:]
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+    for ax, acf_vals, n, label, color in [
+        (axes[0], high_acf, len(high), 'High RegimeScore (>0.5)',   'steelblue'),
+        (axes[1], low_acf,  len(low),  'Low RegimeScore (\u22640.5)', 'tomato'),
+    ]:
+        ci = 1.96 / np.sqrt(n)
+        ax.bar(lags, acf_vals, color=color, alpha=0.75, width=0.6)
+        ax.axhline( ci, color='gray', linestyle='--', linewidth=1)
+        ax.axhline(-ci, color='gray', linestyle='--', linewidth=1)
+        ax.axhline(0,   color='black', linewidth=0.5)
+        ax.set_title(f'TFI ACF — {label}')
+        ax.set_xlabel('Lag (minutes)')
+        ax.set_ylabel('Autocorrelation')
+        ax.set_xticks(lags)
+    fig.suptitle('TFI Autocorrelation Function by RegimeScore', fontsize=13)
+    fig.tight_layout()
+    fig.savefig(f'{save_dir}/tfi_acf_by_regime.png',
+                dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print("Saved tfi_acf_by_regime.png")
+
+
 if __name__ == '__main__':
     DATA_DIR = (
         "/Users/gabeungab/Desktop/Quant Research Project/raw-data/"
@@ -227,10 +378,15 @@ if __name__ == '__main__':
         lambda_series, roll_series, arrival_series, exclusion_mask
     )
 
+    print("Computing TFI and returns...")
+    tfi     = compute_tfi(df_clean)
+    returns = compute_returns(df_clean)
+
     print("Generating plots...")
     plot_lambda(lambda_series)
     plot_roll(roll_series)
     plot_arrival(arrival_series)
     plot_regime_score(regime_score)
+    plot_tfi_by_regime(tfi, returns, regime_score)
 
     print("Done. All plots saved to results/phase3/")
