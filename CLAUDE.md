@@ -1,15 +1,27 @@
 # CLAUDE.md — Project Context
 
 ## What this project is
-Original empirical research on ES futures tick data from CME Globex.
 Studying the regime-conditioned price impact of Trade Flow
-Imbalance (TFI) in ES futures. The primary hypothesis — that TFI
-predicts next-bar returns more strongly in high-information-
-asymmetry periods — produced a null result (β₃ = 0.0001, p = 0.570).
-The validated contribution is a real-time regime detector that
-quantifies adverse selection amplification (contemporaneous β₃ =
-0.0015, z = 7.214, p < 0.001) and confirms ES futures incorporate
-regime-conditioned order flow within one 1-minute bar.
+Imbalance (TFI) in ES futures. The regime detector is the primary
+contribution — a two-component composite (Kyle's lambda + trade
+arrival rate) that identifies periods of elevated information
+asymmetry in real time from trades-only data. TFI serves two
+explicitly separated roles: (1) a contemporaneous characterization
+of adverse selection amplification, framed as a confounded market
+maker calibration (not an empirical finding), and (2) a forward
+return predictability test, which produced a null result
+(β₃ = 0.0001, p = 0.570) — the primary empirical finding,
+interpreted as an efficiency result about information incorporation
+speed in ES futures.
+
+Key design constraint: with trades-only data, a fully orthogonal
+regime detector is impossible — any detector derived from aggressor-
+side volume shares informational content with TFI. Lambda + TAR is
+the least circular available detector given this constraint. We
+deliberately sacrifice some detection accuracy (per Ahern, 2018,
+the most accurate trades-only detector uses TFI variants directly)
+for research design cleanliness. This tradeoff and its implications
+are stated explicitly in the paper's limitations section.
 
 Final deliverables:
 - Clean GitHub repository with fully reproducible code
@@ -22,10 +34,15 @@ interview — every line of code, every methodological choice,
 every result.
 
 The project has two layers:
-- Layer 1: Does TFI predict returns more strongly in high-
-  RegimeScore periods? Narrow, rigorous, and empirically tested.
-- Layer 2: What the findings imply for market maker quote
-  adjustment — quantitatively specific, references actual results.
+- Layer 1: Regime detector construction and validation. Does the
+  detector correctly identify periods of elevated information
+  asymmetry? Validated via contemporaneous TFI-return amplification
+  (confounded calibration, explicitly framed as such) and the T+1
+  null efficiency finding.
+- Layer 2: Market maker implications — quantified using the
+  contemporaneous dynamic amplification formula and the p% intra-bar
+  framework (empirically derived weight schedule for applying the
+  amplification coefficient to evolving mid-bar TFI).
 
 ---
 
@@ -41,7 +58,8 @@ The project has two layers:
 - Phase 6: Paper writing and code polish
 
 ## Current status
-Phase 4 in progress - review, out-of-sample + robustness remaining
+Phase 4 being rerun with updated regime detector and exclusion
+windows. Phase 5 not started. Five research angles under evaluation.
 
 Phase 0 Stream A completed:
 - load_day(), load_all_days(), resample_to_bars(),
@@ -100,23 +118,37 @@ Phase 3 completed:
 - Key stats: exclusion mask 7,487 bars (2.1%); RegimeScore 55,171
   non-NaN RTH bars; lambda NaN rate 31.5% from zero-variance flow
 - Exploratory finding: contemporaneous TFI slope 1.87x larger in
-  high-regime — confirmed as regime detector validation, not
-  independent contribution
+  high-regime — confirmed as confounded calibration, not independent
+  contribution. Retired from paper.
 
-Phase 4 completed:
+Phase 4 initial run completed (numbers will update after rerun):
 - src/formal_analysis.py: full regression pipeline
 - N = 53,787 regression bars, 169 trading days
-- Primary result: β₃ = 0.0001, p = 0.570 at T+1 — null result
+- Primary result: β₃ = 0.0001, p = 0.570 at T+1 — null, genuine
+  efficiency finding, primary empirical result
 - Contemporaneous: β₃ = 0.0015, z = 7.214, p < 0.001 —
-  significant but partially circular (lambda in RegimeScore)
+  confounded calibration, almost certainly overestimates true
+  causal amplification. Dynamic: dReturn/dTFI = β₁ + β₃ × RegimeScore
 - Horizon: no regime interaction at T+5 or T+15
-- Subsample: null result consistent across May-Sep and Oct-Dec
-- Transaction cost: contemporaneous signal survives round-trip
-  costs at p75 high-regime TFI (net 0.702 bps after 0.774 bps
-  round-trip); T+1 does not
+- Subsample: null consistent across May-Sep and Oct-Dec
 - All outputs saved to results/phase4/
-- PAPER.md Sections 4.5, 4.6, 5 updated; phase2_development.md
-  updated
+
+Phase 4 pending changes (rerun required):
+- Drop Roll spread from regime detector. New detector: lambda + TAR
+  only. Roll is non-orthogonal to lambda, fails in one-sided markets,
+  and is redundant with TAR.
+- Change announcement exclusion from ±30 min to +30 min post-event
+  only. Pre-announcement window may contain genuine informed leakage
+  and should remain in analysis.
+- PAPER.md, phase2_development.md, CLAUDE.md to be updated after
+  rerun with new β₃ values.
+
+Five research angles under evaluation before Phase 5:
+1. Lagged regime conditioning (RegimeScore_{t-1} on T+1 returns)
+2. Time-of-day interaction (midday window 11:00-13:00)
+3. Asymmetric TFI quintile interaction
+4. Regime transition dynamics
+5. Volume-conditioned TFI (absolute imbalance)
 
 ---
 
@@ -207,9 +239,28 @@ only empirical observations connected to those concepts.
 Computed at 1-minute resolution from aggressor side field.
 
 **Regime score:**
-RegimeScore_t = 1 / (1 + exp(−(z_lambda − z_roll + z_arrival)))
-All z-scores computed over rolling 30-minute window (5-min for
-arrival rate). Set to 0 in exclusion windows.
+RegimeScore_t = 1 / (1 + exp(−(z_lambda + z_arrival)))
+Two components only: Kyle's lambda (30-min rolling OLS) and trade
+arrival rate (5-min rolling). Roll spread removed — non-orthogonal
+to lambda, fails in one-sided markets, redundant with TAR.
+All z-scores rolling, past data only. Set to 0 in exclusion windows.
+
+**Exclusion windows:**
+- Final 10 min of session (MOC uninformed flow)
+- +30 min POST-announcement only (FOMC, CPI, NFP) — pre-
+  announcement window retained as potentially informed
+- Contract roll dates + 3 preceding trading days
+
+**Contemporaneous characterization:**
+Return_t = α + β₁·TFI_t + β₂·RegimeScore_{t-1} +
+           β₃·(TFI_t × RegimeScore_{t-1}) +
+           β₅·TFI_{t-1} + ε_t
+Uses lagged RegimeScore_{t-1} — regime fully predetermined before
+bar t's trades begin. TFI-Return confounding within the bar remains
+(both constructed from same bar's trades); used for market maker 
+calibration only, NOT a primary empirical finding. β₃ almost 
+certainly overestimates true causal amplification. Dynamic 
+amplification: dReturn/dTFI = β₁ + β₃ × RegimeScore_{t-1}.
 
 **Primary regression:**
 Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t +
@@ -231,6 +282,8 @@ Formal result: β₃ = 0.0015, z = 7.214, p < 0.001.
 - Cont, Kukanov, Stoikov (2014) — JFEC — OFI predicting returns
 - Roll (1984) — JF — implicit spread estimator
 - Easley, Lopez de Prado, O'Hara (2012) — RFS — VPIN
+- Ahern (2018) — NBER — informed trading detection; absolute order
+  imbalance and negative TFI autocorrelation are most accurate
 
 ## Data
 - Source: Databento, GLBX.MDP3, Trades schema

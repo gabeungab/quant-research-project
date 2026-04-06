@@ -612,6 +612,8 @@ full work sessions should be analysis, not new work.
 - Review all of Phase 3 and 4 findings and decisions made and
   try to find a new angle of research; null results are fine,
   but push harder to see if you can make any more real findings.
+- Also double check all work; there may be inconsistencies / 
+  holes (long day of work, focus not 100%).
 - Only until fully satisfied / path has been relatively exhausted,
   then move onto Phase 4 out-of-sample testing + robustness checks.
     - Very important to spend time here, because once out-of-sample 
@@ -619,7 +621,244 @@ full work sessions should be analysis, not new work.
 
 ---
 
-## 2026-03-31
+## 2026-04-05
+
+**Session Summary:**
+- Deep review of Phase 3 and Phase 4 from the ground up. Identified
+  fundamental design problems in the regime detector and regression
+  setup. Made key decisions on what to keep, drop, reframe, and add.
+  Reframed the entire research question and paper structure.
+- Key decisions: drop Roll from regime detector (lambda + TAR only),
+  change announcement exclusion to post-only, reframe paper around
+  regime detector as primary contribution with TFI as validation and
+  efficiency test, add p% intra-bar amplification framework as Phase 5
+  analysis, plan data continuation section around LOB-based orthogonal
+  detector.
+- Did not commit to Phase 5. Evaluating five research angles first.
+
+**Findings:**
+
+PROBLEM 1 — Roll spread: more problems than it fixes.
+- Roll was included to rule out thin markets as source of high lambda.
+  Problems: (a) Roll is non-orthogonal to lambda — both spike at same
+  directional price events, reducing composite score independence.
+  (b) Roll clips to zero in one-sided markets — precisely the most
+  informed conditions — systematically underestimating RegimeScore
+  when informed trading is most intense. (c) Roll addresses only the
+  spread symptom of thin markets; TAR already addresses participation
+  and depth more directly. Roll is redundant with TAR and introduces
+  two new problems.
+- Decision: drop Roll entirely. New regime detector is two-component:
+  lambda + TAR only. Literature support: Roll (1984) is known to
+  produce undefined estimates when autocovariance is positive, exactly
+  the condition in one-sided informed markets.
+
+PROBLEM 2 — Fundamental confounding in the contemporaneous regression.
+- TFI_t and Return_t are both constructed from the same bar t trades.
+  Every buyer-initiated trade simultaneously increases TFI_t (adds to
+  BuyVol) and increases Return_t (pushes price up). The correlation
+  between TFI_t and Return_t is therefore an algebraic consequence of
+  their shared data generating process — not a discovered relationship.
+  β₃ in the contemporaneous regression inherits this confounding
+  completely: it measures both genuine causal amplification AND the
+  mechanical signed-flow-to-price relationship. Since both components
+  are always positive, the 2.7x almost certainly OVERESTIMATES the
+  true causal amplification by an unknown amount.
+- For a same-bar regression to be non-confounded, X and Y must not
+  share the same underlying events. With trades-only single-instrument
+  data this is impossible — all microstructure variables within a bar
+  are computed from the same trades. A truly non-confounded same-bar
+  test would require a dependent variable from a different data source
+  (e.g., options IV, cross-asset price response).
+- Decision: contemporaneous β₃ = 0.0015, z = 7.214 is real as a
+  number but is a confounded characterization, NOT an empirical finding.
+  Its only legitimate use is as a historical calibration coefficient
+  for the market maker application (see below), with confounding
+  explicitly stated. The T+1 forward regression is the genuine
+  non-confounded test. The null result (β₃ = 0.0001, p = 0.570) is
+  the primary empirical finding.
+
+PROBLEM 3 — TFI-lambda circularity (separate from confounding above).
+- Lambda is derived from rolling OLS of price changes on signed order
+  flow. TFI is normalized signed order flow. Both share aggressor-side
+  volume as raw input. This means the regime detector partially measures
+  the same thing it is supposed to condition on — the regime is not
+  independent of TFI. This circularity exists at the detector level
+  (not just the regression level as in Problem 2) and cannot be removed
+  with lag structures. It can only be fixed by using a regime detector
+  derived from a completely different data source (LOB, options, cross-
+  asset) that does not share the signed flow input.
+- Ahern (2018) identifies absolute order imbalance (= |TFI| × TotalVol)
+  and TFI autocorrelation as the most accurate informed trading
+  detectors from trades-only data. However these ARE TFI variants —
+  using them as the regime detector would create maximum circularity.
+  Lambda + TAR is therefore the least circular available regime
+  detector given trades-only data, even though it is less accurate
+  by Ahern's standard. This is a deliberate accuracy-vs-orthogonality
+  tradeoff, not an oversight. Must be stated explicitly in limitations.
+- Decision: acknowledge that we are building the most orthogonal regime
+  detector possible for trades-only data, not the most accurate one.
+  A truly orthogonal detector requires LOB or options data. This project
+  establishes the trades-only baseline.
+
+PROBLEM 4 — Announcement exclusion windows were too broad.
+- Pre-announcement window (−30 min before event) may contain genuine
+  informed leakage from traders with early signal access — exactly
+  what the regime detector should identify. Excluding it removes the
+  most theoretically informed period from analysis.
+- Post-announcement window (+30 min after event) is public information
+  response, correct to exclude.
+- Decision: change from ±30 min to +30 min post-event only.
+
+PROBLEM 5 — Realized volatility threshold for unscheduled stress.
+- Considered as a filter for unscheduled market stress episodes where
+  lambda spikes for non-informed reasons. Rejected because: realized
+  vol and returns are directly related, making a vol-based exclusion
+  ad-hoc and potentially removing genuine high-informed-trading events.
+  No clean theoretical justification for any specific threshold.
+- Decision: do not implement. Acknowledge unscheduled stress as an
+  explicit limitation. Exclusion windows handle only scheduled events.
+
+RESEARCH REFRAME — Regime detector is the primary contribution.
+
+Original framing: "does TFI predict returns more strongly in informed
+regimes?" Led to a null T+1 result and a confounded contemporaneous
+finding.
+
+New framing: the regime detector itself is the primary contribution.
+TFI serves two explicitly separated and carefully framed roles:
+
+(a) Contemporaneous characterization (T+0) — confounded, used as
+market maker calibration only:
+- β₃ = 0.0015, z = 7.214. The total TFI slope is dynamic and
+  continuous: dReturn/dTFI = β₁ + β₃ × RegimeScore. At mean
+  high-regime score of 0.788 this equals 0.00188, giving a 2.7x
+  amplification ratio vs. the unconditional 0.0007 baseline.
+- 2.7x is NOT a constant multiplier. It is the ratio at one specific
+  RegimeScore value. Every RegimeScore value produces a different
+  amplification. Every unit increase in RegimeScore increases the TFI
+  slope by β₃ = 0.0015.
+- 2.7x almost certainly OVERESTIMATES the true causal amplification
+  because the confounded regression mechanically inflates β₃.
+- Market maker application: a market maker does not compute TFI from
+  a completed bar. They observe evolving TFI trade-by-trade within an
+  open bar in real time. At the start of bar t, RegimeScore_{t-1}
+  is already known (fully predetermined from the prior bar). As each
+  trade arrives mid-bar, TFI accumulates. The market maker applies
+  the dynamic slope formula (0.0007 + 0.0015 × RegimeScore_{t-1})
+  to accumulating TFI, with weight growing from 0% at bar open to
+  100% at bar close as the partial TFI converges to its final value.
+  This is applying a historically estimated (confounded) coefficient
+  to live evolving flow as a calibration guide — not predicting the
+  future. The confounding must be stated explicitly so the 2.7x is
+  understood as approximate calibration, not a validated causal number.
+- Using lagged RegimeScore_{t-1} for this application is the correct
+  and cleaner version: the regime signal is fully predetermined before
+  any of bar t's confounded trades begin. This removes the regime-
+  level simultaneity even though the TFI-Return confounding within
+  the bar remains.
+
+(b) Forward predictability test (T+1) — non-confounded, primary result:
+- β₃ = 0.0001, p = 0.570. Null result. Genuine efficiency finding.
+- Return_{t+1} is not in lambda's estimation window and is unknown
+  when TFI_t is observed. No confounding.
+- Consistent across May-Sep (p = 0.704), Oct-Dec (p = 0.639), T+5
+  (p = 0.902), T+15 (p = 0.659).
+- Interpretation: ES futures prices incorporate regime-conditioned
+  order flow within one 1-minute bar. There is no residual forward
+  predictability at any horizon tested under any conditioning structure.
+- Market making implication of the null: regime-conditioned adverse
+  selection is fully realized within the current bar. A market maker
+  who misses the within-bar signal has no second chance — there is no
+  carry-forward of regime-conditioned adverse selection to the next
+  bar. This makes real-time intra-bar response (p% framework) the
+  only actionable strategy.
+
+THINGS OMITTED COMPLETELY:
+- Sign reversal narrative: did not survive formal testing with
+  lag_return control (β₄ = -0.489). Artifact of unconditional
+  exploratory slopes.
+- TFI ACF finding by regime: partially circular. Not independently
+  defensible. Dropped.
+- 1.87x amplification number: replaced by 2.7x from formal regression.
+- Roll spread as regime component: retired with full justification.
+
+NEW ADDITION LOCKED IN — p% intra-bar amplification framework:
+- Constructible from current tick data (nanosecond timestamps already
+  available). Not a future research item — Phase 5 analysis.
+- Method: for each 1-minute bar, compute TFI at 10%, 20%... 90% of
+  elapsed bar time. Run regression of bar-end Return_t on PartialTFI_p
+  conditioned on RegimeScore_{t-1} at each interval p. The coefficient
+  θ_p as a function of p gives the empirically derived weight schedule —
+  how much the partial TFI matters per unit of accumulating flow at
+  each stage of bar completion, amplified by the lagged regime score.
+- Nuance: early-bar portion of the weight curve is most reliable
+  (partial TFI shares fewest trades with remaining return). Late-bar
+  portion is most confounded. State this explicitly.
+- This is the quantitative market making framework — empirically
+  derived, not arbitrarily assumed.
+
+KEY NUMBERS (updated after Roll removal and post-only exclusion rerun):
+- T+1: β₃ = 0.0001, p = 0.570 — null, genuine, primary finding.
+- Contemporaneous: β₃ = 0.0015, z = 7.214 — confounded calibration,
+  2.7x at RegimeScore = 0.788, likely overestimate of true effect.
+- Unconditional TFI: β₁ = 0.0007, p < 0.001 — replication of Cont
+  et al. (2014) in ES futures.
+- Horizon: null at T+5 (p = 0.902) and T+15 (p = 0.659).
+- Subsample: null in May-Sep (p = 0.704) and Oct-Dec (p = 0.639).
+
+DATA CONTINUATION SECTION (future research beyond current project):
+- The single most important extension: replace the regime detector with
+  one derived from LOB data (bid-ask dynamics, cancellation rates,
+  depth changes) — none of which share the signed-flow input of TFI.
+  This makes the regime detector and TFI fully orthogonal, removing
+  the circularity that is impossible to escape with trades-only data.
+  With this orthogonal detector, paired with forward return testing,
+  there are no confounding or circularity problems remaining.
+- Two sub-questions with the orthogonal LOB detector:
+  (A) Does regime-conditioned TFI predict forward returns at 1-minute
+  resolution? If yes, our null result was a detection precision problem,
+  not a market efficiency result.
+  (B) Does regime-conditioned TFI predict forward returns at sub-minute
+  resolution (10-second, 30-second bars)? Tests whether the efficiency
+  finding generalizes across bar sizes.
+- Reference Ahern (2018) as the accuracy benchmark for trades-only
+  regime detection; explain that LOB-based detection supersedes it
+  by enabling orthogonality with TFI that trades-only data cannot
+  provide regardless of which trades-based measure is chosen.
+
+**Open questions:**
+
+Five angles to evaluate before Phase 5. Priority order:
+- Lagged regime conditioning (Angle 4): use RegimeScore_{t-1} to
+  condition TFI_t on Return_{t+1}. Removes all simultaneity. Almost
+  certainly null, but strengthens efficiency story across all
+  conditioning structures. Run first, run quickly.
+- Time-of-day interaction (Angle 3): test whether T+1 null masks a
+  significant midday-window (11:00-13:00) interaction where regime
+  detector operates most cleanly. Best shot at a non-null result.
+- Asymmetric TFI quintile interaction (Angle 1): test nonlinearity
+  by regime in TFI quintile dummies rather than linear continuous
+  interaction.
+- Regime transition dynamics (Angle 2): test whether first bar after
+  low-to-high regime transition has different TFI-return dynamics.
+- Volume-conditioned TFI (Angle 5): absolute order imbalance instead
+  of normalized TFI, conditioned on typical volume for time-of-day.
+
+For each angle: assess new circularity introduced, constructibility
+with current data, theoretical motivation, and whether null vs.
+non-null changes the paper's primary framing.
+
+**Next step:**
+1. Implement Roll removal and post-only exclusion in
+   signal_construction.py. Rerun formal_analysis.py. Record new β₃.
+2. Evaluate five angles in priority order above.
+3. Build p% intra-bar framework from tick data (Phase 5 scope).
+4. Update PAPER.md, CLAUDE.md, phase2_development.md after rerun.
+
+---
+
+## 2026-04-06
 
 **Session Summary:**
 - 
