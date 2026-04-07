@@ -1,0 +1,30 @@
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:             fwd_return   R-squared:                       0.236
+Model:                            OLS   Adj. R-squared:                  0.236
+Method:                 Least Squares   F-statistic:                     486.6
+Date:                Tue, 07 Apr 2026   Prob (F-statistic):               0.00
+Time:                        13:27:45   Log-Likelihood:             2.8188e+05
+No. Observations:               55634   AIC:                        -5.637e+05
+Df Residuals:                   55627   BIC:                        -5.637e+05
+Df Model:                           6                                         
+Covariance Type:                  HAC                                         
+====================================================================================
+                       coef    std err          z      P>|z|      [0.025      0.975]
+------------------------------------------------------------------------------------
+const            -4.405e-06   9.09e-06     -0.485      0.628   -2.22e-05    1.34e-05
+tfi                  0.0006      0.000      4.705      0.000       0.000       0.001
+regime_score      8.589e-06    1.5e-05      0.573      0.566   -2.08e-05    3.79e-05
+tfi_x_regime         0.0001      0.000      0.656      0.512      -0.000       0.001
+tfi_x_transition     0.0003      0.000      2.376      0.017    4.82e-05       0.001
+lag_return          -0.4883      0.009    -53.867      0.000      -0.506      -0.471
+lag_tfi          -5.125e-05   5.51e-05     -0.931      0.352      -0.000    5.67e-05
+==============================================================================
+Omnibus:                    14818.212   Durbin-Watson:                   2.316
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):           939490.626
+Skew:                          -0.384   Prob(JB):                         0.00
+Kurtosis:                      23.117   Cond. No.                         633.
+==============================================================================
+
+Notes:
+[1] Standard Errors are heteroscedasticity and autocorrelation robust (HAC) using 5 lags and without small sample correction

@@ -9,7 +9,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 from data_loader import load_all_days, remove_outliers, compute_tfi, compute_returns
 from signal_construction import (
     compute_lambda,
-    compute_roll_spread,
     compute_arrival_rate,
     compute_exclusion_mask,
     compute_regime_score,
@@ -18,6 +17,9 @@ from signal_construction import (
 # ── Paths ─────────────────────────────────────────────────────────────────────
 DATA_DIR = os.path.expanduser(
     '~/Desktop/Quant Research Project/raw-data/GLBX-20250501-20251231/'
+)
+OOS_DATA_DIR = os.path.expanduser(
+    '~/Desktop/Quant Research Project/raw-data/GLBX-20260101-20260309/'
 )
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'results', 'phase4')
 os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -49,6 +51,20 @@ ANNOUNCEMENT_DATES = [
     pd.Timestamp("2025-12-16 08:30", tz=TZ),
 ]
 
+OOS_ANNOUNCEMENT_DATES = [
+    # FOMC (2:00 PM ET)
+    pd.Timestamp("2026-01-28 14:00", tz=TZ),
+    pd.Timestamp("2026-03-18 14:00", tz=TZ),
+    # CPI (8:30 AM ET)
+    pd.Timestamp("2026-01-13 08:30", tz=TZ),
+    pd.Timestamp("2026-02-11 08:30", tz=TZ),
+    pd.Timestamp("2026-03-11 08:30", tz=TZ),
+    # NFP (8:30 AM ET)
+    pd.Timestamp("2026-01-09 08:30", tz=TZ),
+    pd.Timestamp("2026-02-11 08:30", tz=TZ),
+    pd.Timestamp("2026-03-06 08:30", tz=TZ),
+]
+
 # =============================================================================
 # 1. DATA PREPARATION
 # =============================================================================
@@ -67,7 +83,6 @@ print(f"    Loaded {len(df_clean):,} clean RTH trades across "
 # ── Compute signals ───────────────────────────────────────────────────────────
 print("\n[2] Computing signals...")
 lambda_series  = compute_lambda(df_clean)
-roll_series    = compute_roll_spread(df_clean)
 arrival_series = compute_arrival_rate(df_clean)
 
 df_indexed = df_clean.set_index('ts_event_et')
@@ -79,7 +94,7 @@ if bars.index.tzinfo is None:
 
 exclusion_mask = compute_exclusion_mask(bars, ann_dates)
 regime_score   = compute_regime_score(
-    lambda_series, roll_series, arrival_series, exclusion_mask
+    lambda_series, arrival_series, exclusion_mask
 )
 
 tfi     = compute_tfi(df_clean)
@@ -104,17 +119,20 @@ first_bar = reg_dates != reg_dates.shift(1)
 reg.loc[first_bar, 'log_return'] = np.nan
 
 # Construct regression variables per research design
-reg['fwd_return']   = reg['log_return'].shift(-1)   # Return_{t+1}
-reg['lag_return']   = reg['log_return']              # Return_t (control)
-reg['lag_tfi']      = reg['tfi'].shift(1)            # TFI_{t-1} (control)
-reg['tfi_x_regime'] = reg['tfi'] * reg['regime_score']
+reg['fwd_return']       = reg['log_return'].shift(-1)   # Return_{t+1}
+reg['lag_return']       = reg['log_return']              # Return_t (control)
+reg['lag_tfi']          = reg['tfi'].shift(1)            # TFI_{t-1} (control)
+reg['tfi_x_regime']     = reg['tfi'] * reg['regime_score']
+reg['regime_score_lag'] = reg['regime_score'].shift(1)   # RegimeScore_{t-1}
+reg['tfi_x_regime_lag'] = reg['tfi'] * reg['regime_score_lag']
 
 n_raw = len(reg)
 print(f"    Bars before filters: {n_raw:,}")
 
 # ── Drop NaN rows (rolling warmup + day boundaries + forward return edge) ─────
 REGRESSION_COLS = ['fwd_return', 'tfi', 'regime_score',
-                   'tfi_x_regime', 'lag_return', 'lag_tfi']
+                   'tfi_x_regime', 'regime_score_lag', 'tfi_x_regime_lag',
+                   'lag_return', 'lag_tfi']
 reg = reg.dropna(subset=REGRESSION_COLS)
 n_final = len(reg)
 print(f"    Dropped (NaN/warmup/boundaries): {n_raw - n_final:,}")
@@ -158,11 +176,11 @@ print(model.summary())
 # =============================================================================
 
 print("\n" + "=" * 60)
-print("CONTEMPORANEOUS REGRESSION — Return_t")
+print("CONTEMPORANEOUS REGRESSION — Return_t (lagged RegimeScore)")
 print("=" * 60)
 
 y_contemp = reg['lag_return']
-X_contemp = sm.add_constant(reg[['tfi', 'regime_score', 'tfi_x_regime',
+X_contemp = sm.add_constant(reg[['tfi', 'regime_score_lag', 'tfi_x_regime_lag',
                                    'lag_tfi']])
 
 model_contemp = sm.OLS(y_contemp, X_contemp).fit(
@@ -268,7 +286,201 @@ for label, (start, end) in subsamples.items():
     print(f"  R²: {model_sub.rsquared:.6f}")
 
 # =============================================================================
-# 6. TRANSACTION COST ANALYSIS
+# 6. OUT-OF-SAMPLE VALIDATION (2026-01 to 2026-03)
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("OUT-OF-SAMPLE VALIDATION — 2026 Jan–Mar")
+print("=" * 60)
+
+print("\n  [OOS-1] Loading OOS data...")
+df_oos       = load_all_days(OOS_DATA_DIR)
+df_oos_clean = remove_outliers(df_oos)
+print(f"    Loaded {len(df_oos_clean):,} clean RTH trades across "
+      f"{df_oos_clean['ts_event_et'].dt.date.nunique()} trading days")
+
+print("  [OOS-2] Computing signals...")
+lambda_oos  = compute_lambda(df_oos_clean)
+arrival_oos = compute_arrival_rate(df_oos_clean)
+
+df_oos_indexed = df_oos_clean.set_index('ts_event_et')
+bars_oos = df_oos_indexed['price'].resample('1min').count()
+
+ann_dates_oos = OOS_ANNOUNCEMENT_DATES
+if bars_oos.index.tzinfo is None:
+    ann_dates_oos = [dt.tz_localize(None) for dt in ann_dates_oos]
+
+exclusion_mask_oos = compute_exclusion_mask(bars_oos, ann_dates_oos)
+regime_score_oos   = compute_regime_score(
+    lambda_oos, arrival_oos, exclusion_mask_oos
+)
+
+tfi_oos     = compute_tfi(df_oos_clean)
+returns_oos = compute_returns(df_oos_clean)
+
+tfi_oos_series = tfi_oos['tfi'] if isinstance(tfi_oos, pd.DataFrame) else tfi_oos
+ret_oos_series = (returns_oos['log_return']
+                  if isinstance(returns_oos, pd.DataFrame) else returns_oos)
+
+reg_oos = pd.DataFrame({
+    'tfi':          tfi_oos_series,
+    'log_return':   ret_oos_series,
+    'regime_score': regime_score_oos,
+})
+
+# Null out first bar of each day — overnight gap is not an RTH return
+reg_oos_dates = pd.Series(reg_oos.index.date, index=reg_oos.index)
+first_bar_oos = reg_oos_dates != reg_oos_dates.shift(1)
+reg_oos.loc[first_bar_oos, 'log_return'] = np.nan
+
+reg_oos['fwd_return']       = reg_oos['log_return'].shift(-1)
+reg_oos['lag_return']       = reg_oos['log_return']
+reg_oos['lag_tfi']          = reg_oos['tfi'].shift(1)
+reg_oos['tfi_x_regime']     = reg_oos['tfi'] * reg_oos['regime_score']
+reg_oos['regime_score_lag'] = reg_oos['regime_score'].shift(1)
+reg_oos['tfi_x_regime_lag'] = reg_oos['tfi'] * reg_oos['regime_score_lag']
+
+reg_oos = reg_oos.dropna(subset=REGRESSION_COLS)
+print(f"    OOS regression N: {len(reg_oos):,}")
+print(f"    OOS date range:   {reg_oos.index.min()} → {reg_oos.index.max()}")
+
+# Primary specification, no refitting — apply in-sample spec to OOS data
+y_oos = reg_oos['fwd_return']
+X_oos = sm.add_constant(reg_oos[['tfi', 'regime_score', 'tfi_x_regime',
+                                   'lag_return', 'lag_tfi']])
+model_oos = sm.OLS(y_oos, X_oos).fit(cov_type='HAC', cov_kwds={'maxlags': 5})
+
+print(f"\n  OOS Primary (Return_{{t+1}}) | N={int(model_oos.nobs):,}")
+print(f"    β₃ (tfi_x_regime): {model_oos.params['tfi_x_regime']:.6f}")
+print(f"    p-value:           {model_oos.pvalues['tfi_x_regime']:.4f}")
+print(f"    z-stat:            {model_oos.tvalues['tfi_x_regime']:.3f}")
+
+# =============================================================================
+# 7. LAGGED REGIME CONDITIONING (RegimeScore_{t-1} on T+1)
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("LAGGED REGIME CONDITIONING — RegimeScore_{t-1} on Return_{t+1}")
+print("=" * 60)
+
+# regime_score_lag and tfi_x_regime_lag are already in REGRESSION_COLS dropna,
+# so reg already has non-NaN values for these columns. reg_lag == reg here.
+reg_lag = reg
+
+y_lag = reg_lag['fwd_return']
+X_lag = sm.add_constant(reg_lag[['tfi', 'regime_score_lag', 'tfi_x_regime_lag',
+                                   'lag_return', 'lag_tfi']])
+model_lag = sm.OLS(y_lag, X_lag).fit(cov_type='HAC', cov_kwds={'maxlags': 5})
+
+print(f"\n  Lagged-regime Primary | N={int(model_lag.nobs):,}")
+print(f"    β₃ (tfi_x_regime_lag): {model_lag.params['tfi_x_regime_lag']:.6f}")
+print(f"    p-value:               {model_lag.pvalues['tfi_x_regime_lag']:.4f}")
+print(f"    z-stat:                {model_lag.tvalues['tfi_x_regime_lag']:.3f}")
+
+# =============================================================================
+# 8. MIDDAY SUBSAMPLE (11:00–13:00 ET)
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("MIDDAY SUBSAMPLE — 11:00–13:00 ET (hour ∈ {11, 12})")
+print("=" * 60)
+
+reg_midday = reg[reg.index.hour.isin([11, 12])]
+reg_midday = reg_midday.dropna(subset=REGRESSION_COLS)
+
+y_mid = reg_midday['fwd_return']
+X_mid = sm.add_constant(reg_midday[['tfi', 'regime_score', 'tfi_x_regime',
+                                      'lag_return', 'lag_tfi']])
+model_midday = sm.OLS(y_mid, X_mid).fit(cov_type='HAC', cov_kwds={'maxlags': 5})
+
+print(f"\n  Midday Primary (Return_{{t+1}}) | N={int(model_midday.nobs):,}")
+print(f"    β₃ (tfi_x_regime): {model_midday.params['tfi_x_regime']:.6f}")
+print(f"    p-value:           {model_midday.pvalues['tfi_x_regime']:.4f}")
+print(f"    z-stat:            {model_midday.tvalues['tfi_x_regime']:.3f}")
+
+# =============================================================================
+# 9. TFI QUINTILE INTERACTION (Bonferroni-corrected)
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("TFI QUINTILE INTERACTION — Bonferroni α = 0.01 (5 tests)")
+print("=" * 60)
+
+reg['tfi_quintile'] = pd.qcut(reg['tfi'], q=5, labels=[1, 2, 3, 4, 5])
+quintile_dummy_cols = []
+for q in [1, 2, 4, 5]:
+    col = f'tfi_q{q}_x_regime'
+    reg[col] = (reg['tfi_quintile'] == q).astype(float) * reg['regime_score']
+    quintile_dummy_cols.append(col)
+
+# Replace single tfi_x_regime term with the four quintile dummy interactions.
+# Quintile 3 is the omitted reference category.
+y_q = reg['fwd_return']
+X_q = sm.add_constant(reg[['tfi', 'regime_score'] + quintile_dummy_cols +
+                          ['lag_return', 'lag_tfi']])
+model_quintile = sm.OLS(y_q, X_q).fit(cov_type='HAC', cov_kwds={'maxlags': 5})
+
+BONFERRONI_ALPHA = 0.05 / 5  # = 0.01, family-wise α = 0.05 across 5 tests
+print(f"\n  Quintile Interaction | N={int(model_quintile.nobs):,}")
+print(f"  (omitted reference: q3)")
+print(f"  {'Term':<22} {'Coeff':>12} {'z-stat':>8} {'p-value':>10} "
+      f"{'Bonferroni':>12}")
+print(f"  {'-'*68}")
+for col in quintile_dummy_cols:
+    c = model_quintile.params[col]
+    t = model_quintile.tvalues[col]
+    p = model_quintile.pvalues[col]
+    survives = 'SURVIVES' if p < BONFERRONI_ALPHA else '—'
+    print(f"  {col:<22} {c:>12.6f} {t:>8.3f} {p:>10.4f} {survives:>12}")
+print(f"\n  Bonferroni threshold (α/5): {BONFERRONI_ALPHA:.4f}")
+surviving = [c for c in quintile_dummy_cols
+             if model_quintile.pvalues[c] < BONFERRONI_ALPHA]
+if surviving:
+    print(f"  Quintiles surviving correction: {', '.join(surviving)}")
+else:
+    print(f"  No quintile interactions survive Bonferroni correction.")
+
+# =============================================================================
+# 10. REGIME TRANSITION DYNAMICS
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("REGIME TRANSITION DYNAMICS — sustained vs transition effects")
+print("=" * 60)
+
+# Reindex exclusion_mask to reg.index (reg has NaN-dropped rows).
+# fillna(False) treats unmatched bars as not-excluded rather than NaN.
+exclusion_mask_reg = exclusion_mask.reindex(reg.index).fillna(False).astype(bool)
+prior_excluded = exclusion_mask_reg.shift(1).fillna(False).astype(bool)
+
+high = (reg['regime_score'] > 0.5).astype(int)
+# Transition flag: high now, low prior bar, AND prior bar not masked out by
+# exclusion window (else exiting an exclusion would spuriously register as a
+# transition, since RegimeScore is forced to 0 inside exclusions).
+reg['transition_to_high'] = (
+    (high == 1) & (high.shift(1) == 0) & (~prior_excluded)
+).astype(float)
+reg['tfi_x_transition'] = reg['tfi'] * reg['transition_to_high']
+
+y_tr = reg['fwd_return']
+X_tr = sm.add_constant(reg[['tfi', 'regime_score', 'tfi_x_regime',
+                              'tfi_x_transition', 'lag_return', 'lag_tfi']])
+model_transition = sm.OLS(y_tr, X_tr).fit(
+    cov_type='HAC', cov_kwds={'maxlags': 5}
+)
+
+n_transitions = int(reg['transition_to_high'].sum())
+print(f"\n  Transition Dynamics | N={int(model_transition.nobs):,} "
+      f"({n_transitions:,} transition bars)")
+print(f"    Sustained β₃ (tfi_x_regime):      "
+      f"{model_transition.params['tfi_x_regime']:.6f}  "
+      f"p={model_transition.pvalues['tfi_x_regime']:.4f}")
+print(f"    Transition β (tfi_x_transition):  "
+      f"{model_transition.params['tfi_x_transition']:.6f}  "
+      f"p={model_transition.pvalues['tfi_x_transition']:.4f}")
+
+# =============================================================================
+# 11. TRANSACTION COST ANALYSIS
 # =============================================================================
 
 print("\n" + "=" * 60)
@@ -295,14 +507,17 @@ tfi_p75 = float(reg.loc[high_mask, 'tfi'].quantile(0.75))
 print(f"\n  High-regime TFI percentiles (RegimeScore > 0.5):")
 print(f"    25th: {tfi_p25:.4f}   Median: {tfi_p50:.4f}   75th: {tfi_p75:.4f}")
 
-# ── Contemporaneous spec (β₃ significant, p<0.001) ───────────────────────────
-print(f"\n  --- Contemporaneous regression (β₃ significant, p<0.001) ---")
+# ── Contemporaneous spec ─────────────────────────────────────────────
 a_c  = model_contemp.params['const']
 b1_c = model_contemp.params['tfi']
-b2_c = model_contemp.params['regime_score']
-b3_c = model_contemp.params['tfi_x_regime']
+b2_c = model_contemp.params['regime_score_lag']
+b3_c = model_contemp.params['tfi_x_regime_lag']
 b5_c = model_contemp.params['lag_tfi']
 total_c = b1_c + b3_c
+p_contemp = model_contemp.pvalues['tfi_x_regime_lag']
+
+print(f"\n  --- Contemporaneous regression ---")
+print(f"  (tfi_x_regime_lag: β₃={b3_c:.6f}, p={p_contemp:.4f})")
 
 def pred_contemp(tfi_val, regime_val):
     return (a_c + b1_c * tfi_val + b2_c * regime_val
@@ -328,8 +543,7 @@ if abs(total_c) > 1e-12:
     print(f"    One-way  (1 tick):    {tfi_be_1way:.4f}")
     print(f"    Round-trip (2 ticks): {tfi_be_rt:.4f}")
 
-# ── T+1 spec (β₃ not significant, p=0.570 — for completeness) ────────────────
-print(f"\n  --- T+1 regression (β₃ not significant, p=0.570) ---")
+# ── T+1 spec ─────────────────────────────────────────────────────────
 a_p  = model.params['const']
 b1_p = model.params['tfi']
 b2_p = model.params['regime_score']
@@ -337,6 +551,10 @@ b3_p = model.params['tfi_x_regime']
 b4_p = model.params['lag_return']
 b5_p = model.params['lag_tfi']
 total_p = b1_p + b3_p
+p_primary = model.pvalues['tfi_x_regime']
+
+print(f"\n  --- T+1 regression ---")
+print(f"  (tfi_x_regime: β₃={b3_p:.6f}, p={p_primary:.4f})")
 
 def pred_primary(tfi_val, regime_val):
     return (a_p + b1_p * tfi_val + b2_p * regime_val
@@ -355,7 +573,7 @@ for tfi_val, tag in [(tfi_p25, 'p25 (short)'),
     print(f"  {tag:<12} {gross*1e4:>12.3f} {net1*1e4:>16.3f} {net2*1e4:>14.3f}")
 
 # =============================================================================
-# 7. SAVE RESULTS
+# 12. SAVE RESULTS
 # =============================================================================
 
 print("\n" + "=" * 60)
@@ -369,6 +587,11 @@ def _save_summary(fitted_model, filepath):
 
 _save_summary(model,         os.path.join(RESULTS_DIR, 'primary_regression.txt'))
 _save_summary(model_contemp, os.path.join(RESULTS_DIR, 'contemporaneous_regression.txt'))
+_save_summary(model_oos,        os.path.join(RESULTS_DIR, 'oos_primary_regression.txt'))
+_save_summary(model_lag,        os.path.join(RESULTS_DIR, 'lagged_regime_regression.txt'))
+_save_summary(model_midday,     os.path.join(RESULTS_DIR, 'midday_regression.txt'))
+_save_summary(model_quintile,   os.path.join(RESULTS_DIR, 'quintile_interaction_regression.txt'))
+_save_summary(model_transition, os.path.join(RESULTS_DIR, 'transition_dynamics_regression.txt'))
 
 for h, m in horizon_models.items():
     _save_summary(m, os.path.join(RESULTS_DIR, f'horizon_t{h}_regression.txt'))
@@ -398,6 +621,11 @@ for h, m in horizon_models.items():
     _add_rows(m, f'horizon_t{h}')
 for label, m in subsample_models.items():
     _add_rows(m, f'subsample_{label}')
+
+_add_rows(model_oos,        'oos_primary_t1')
+_add_rows(model_lag,        'lagged_regime_t1')
+_add_rows(model_midday,     'midday_t1')
+_add_rows(model_transition, 'transition_dynamics')
 
 coeff_df = pd.DataFrame(rows)
 coeff_df.to_csv(os.path.join(RESULTS_DIR, 'key_coefficients.csv'),

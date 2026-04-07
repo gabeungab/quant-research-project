@@ -1,27 +1,27 @@
                             OLS Regression Results                            
 ==============================================================================
-Dep. Variable:             lag_return   R-squared:                       0.009
-Model:                            OLS   Adj. R-squared:                  0.009
-Method:                 Least Squares   F-statistic:                     340.8
-Date:                Mon, 30 Mar 2026   Prob (F-statistic):          3.23e-290
-Time:                        17:00:59   Log-Likelihood:             2.6467e+05
-No. Observations:               53787   AIC:                        -5.293e+05
-Df Residuals:                   53782   BIC:                        -5.293e+05
+Dep. Variable:             lag_return   R-squared:                       0.008
+Model:                            OLS   Adj. R-squared:                  0.008
+Method:                 Least Squares   F-statistic:                     288.8
+Date:                Tue, 07 Apr 2026   Prob (F-statistic):          2.98e-246
+Time:                        13:27:45   Log-Likelihood:             2.7465e+05
+No. Observations:               55634   AIC:                        -5.493e+05
+Df Residuals:                   55629   BIC:                        -5.492e+05
 Df Model:                           4                                         
 Covariance Type:                  HAC                                         
-================================================================================
-                   coef    std err          z      P>|z|      [0.025      0.975]
---------------------------------------------------------------------------------
-const        -1.045e-05   8.06e-06     -1.297      0.195   -2.62e-05    5.34e-06
-tfi              0.0007      0.000      4.777      0.000       0.000       0.001
-regime_score  2.444e-05   1.28e-05      1.904      0.057   -7.18e-07    4.96e-05
-tfi_x_regime     0.0015      0.000      7.214      0.000       0.001       0.002
-lag_tfi         -0.0001    6.3e-05     -2.074      0.038      -0.000   -7.19e-06
+====================================================================================
+                       coef    std err          z      P>|z|      [0.025      0.975]
+------------------------------------------------------------------------------------
+const            -8.262e-06   8.25e-06     -1.001      0.317   -2.44e-05    7.91e-06
+tfi                  0.0012      0.000      8.045      0.000       0.001       0.001
+regime_score_lag  1.765e-05   1.37e-05      1.288      0.198    -9.2e-06    4.45e-05
+tfi_x_regime_lag     0.0004      0.000      1.830      0.067   -3.01e-05       0.001
+lag_tfi             -0.0001   6.28e-05     -1.757      0.079      -0.000    1.28e-05
 ==============================================================================
-Omnibus:                    13162.187   Durbin-Watson:                   2.974
-Prob(Omnibus):                  0.000   Jarque-Bera (JB):           929829.838
-Skew:                          -0.010   Prob(JB):                         0.00
-Kurtosis:                      23.369   Cond. No.                         31.1
+Omnibus:                    13818.865   Durbin-Watson:                   2.973
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):          1035757.905
+Skew:                          -0.009   Prob(JB):                         0.00
+Kurtosis:                      24.138   Cond. No.                         33.4
 ==============================================================================
 
 Notes:

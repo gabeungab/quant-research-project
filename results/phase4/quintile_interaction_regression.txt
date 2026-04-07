@@ -1,0 +1,32 @@
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:             fwd_return   R-squared:                       0.236
+Model:                            OLS   Adj. R-squared:                  0.236
+Method:                 Least Squares   F-statistic:                     366.1
+Date:                Tue, 07 Apr 2026   Prob (F-statistic):               0.00
+Time:                        13:27:45   Log-Likelihood:             2.8188e+05
+No. Observations:               55634   AIC:                        -5.637e+05
+Df Residuals:                   55625   BIC:                        -5.637e+05
+Df Model:                           8                                         
+Covariance Type:                  HAC                                         
+===================================================================================
+                      coef    std err          z      P>|z|      [0.025      0.975]
+-----------------------------------------------------------------------------------
+const           -4.416e-06   9.09e-06     -0.486      0.627   -2.22e-05    1.34e-05
+tfi                 0.0006      0.000      5.340      0.000       0.000       0.001
+regime_score    -7.463e-06   2.12e-05     -0.352      0.725    -4.9e-05     3.4e-05
+tfi_q1_x_regime  -1.28e-05   3.35e-05     -0.382      0.702   -7.84e-05    5.28e-05
+tfi_q2_x_regime -2.546e-05   2.55e-05     -1.000      0.317   -7.54e-05    2.44e-05
+tfi_q4_x_regime  4.744e-05   2.62e-05      1.811      0.070    -3.9e-06    9.88e-05
+tfi_q5_x_regime  7.083e-05   3.57e-05      1.984      0.047    8.57e-07       0.000
+lag_return         -0.4884      0.009    -53.852      0.000      -0.506      -0.471
+lag_tfi           -5.1e-05    5.5e-05     -0.928      0.353      -0.000    5.67e-05
+==============================================================================
+Omnibus:                    14819.998   Durbin-Watson:                   2.316
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):           939667.043
+Skew:                          -0.384   Prob(JB):                         0.00
+Kurtosis:                      23.119   Cond. No.                         643.
+==============================================================================
+
+Notes:
+[1] Standard Errors are heteroscedasticity and autocorrelation robust (HAC) using 5 lags and without small sample correction

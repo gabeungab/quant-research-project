@@ -6,13 +6,13 @@ One-way cost (1 tick):        0.3870 bps
 Round-trip cost (2 ticks):    0.7739 bps
 
 CONTEMPORANEOUS (significant):
-  beta_TFI:                   0.00068081
-  beta_interaction:           0.00154880
-  beta_TFI + beta_int:        0.00222961
-  Break-even TFI (1-way):    0.013403
-  Break-even TFI (RT):       0.030759
+  beta_TFI:                   0.00118507
+  beta_interaction:           0.00042532
+  beta_TFI + beta_int:        0.00161039
+  Break-even TFI (1-way):    0.020829
+  Break-even TFI (RT):       0.044857
 
 T+1 (not significant, for completeness):
-  beta_TFI:                   0.00066418
-  beta_interaction:           0.00010984
-  beta_TFI + beta_int:        0.00077402
+  beta_TFI:                   0.00062824
+  beta_interaction:           0.00020337
+  beta_TFI + beta_int:        0.00083160
