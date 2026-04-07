@@ -40,44 +40,6 @@ def compute_lambda(df, window=30):
     return lambda_series
 
 
-def compute_roll_spread(df, window=30):
-    """
-    Estimate the Roll (1984) spread via the rolling serial covariance
-    of consecutive 1-minute bar price changes. Day boundary price changes
-    are nulled out to prevent overnight gaps from contaminating the
-    serial covariance estimate.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Clean RTH trades DataFrame with ts_event_et and price columns.
-    window : int
-        Rolling window in 1-minute bars. Default 30.
-
-    Returns
-    -------
-    pd.Series
-        Roll spread estimate at each 1-minute bar, defined as
-        2 * sqrt(max(0, -cov(delta_p_t, delta_p_{t-1}))).
-    """
-    df = df.set_index('ts_event_et')
-    closes = df['price'].resample('1min').last()
-
-    delta_p = closes.diff()
-
-    # Null out day-boundary price changes to prevent overnight gap
-    # contamination of the serial covariance estimate
-    dates = pd.Series(closes.index.date, index=closes.index)
-    day_boundary = dates != dates.shift(1)
-    delta_p[day_boundary] = float('nan')
-
-    cov_serial = delta_p.rolling(window=window, min_periods=window).cov(
-        delta_p.shift(1)
-    )
-    roll_series = 2 * np.sqrt((-cov_serial).clip(lower=0))
-    return roll_series
-
-
 def compute_arrival_rate(df, window=5):
     """
     Estimate the trade arrival rate as a rolling mean of 1-minute trade counts.
@@ -104,19 +66,16 @@ def compute_arrival_rate(df, window=5):
     return arrival_series
 
 
-def compute_regime_score(lambda_series, roll_series, arrival_series,
-                          exclusion_mask, lambda_window=30, arrival_window=5):
+def compute_regime_score(lambda_series, arrival_series, exclusion_mask, 
+                         lambda_window=30, arrival_window=5, roll_window=30):
     """
-    Combine Kyle's lambda, Roll spread, and trade arrival rate into a
-    continuous RegimeScore in [0, 1] via rolling z-score standardization
-    and a logistic transformation.
+    Combine Kyle's lambda and trade arrival rate into a continuous RegimeScore 
+    in [0, 1] via rolling z-score standardization and a logistic transformation.
 
     Parameters
     ----------
     lambda_series : pd.Series
         Kyle's lambda estimates at each 1-minute bar.
-    roll_series : pd.Series
-        Roll spread estimates at each 1-minute bar.
     arrival_series : pd.Series
         Trade arrival rate estimates at each 1-minute bar.
     exclusion_mask : pd.Series
@@ -137,10 +96,9 @@ def compute_regime_score(lambda_series, roll_series, arrival_series,
         return (series - mean) / std.replace(0, float('nan'))
 
     z_lambda = rolling_zscore(lambda_series, window=lambda_window)
-    z_roll = rolling_zscore(roll_series, window=lambda_window)
     z_arrival = rolling_zscore(arrival_series, window=arrival_window)
 
-    composite = z_lambda - z_roll + z_arrival
+    composite = z_lambda + z_arrival
     regime_score = 1 / (1 + np.exp(-composite))
 
     # Align exclusion mask to regime_score index before applying
@@ -192,9 +150,9 @@ def compute_exclusion_mask(bars, announcement_dates):
     cutoff_time = pd.Timestamp('15:50').time()
     mask |= (is_rth & pd.Series(index.time >= cutoff_time, index=index))
 
-    # ±30 minutes around each macro announcement — RTH only
+    # +30 minutes after each macro announcement — RTH only
     for ann_dt in announcement_dates:
-        window_start = ann_dt - pd.Timedelta(minutes=30)
+        window_start = ann_dt
         window_end = ann_dt + pd.Timedelta(minutes=30)
         mask |= (
             (index >= window_start) &

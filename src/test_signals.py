@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 from data_loader import load_all_days, remove_outliers
 from signal_construction import (
     compute_lambda,
-    compute_roll_spread,
     compute_arrival_rate,
     compute_exclusion_mask,
     compute_regime_score,
@@ -25,7 +24,6 @@ df_clean = remove_outliers(df)
 # ── Compute component series ──────────────────────────────────────────────────
 
 lambda_series  = compute_lambda(df_clean)
-roll_series    = compute_roll_spread(df_clean)
 arrival_series = compute_arrival_rate(df_clean)
 
 # ── Build 1-minute bar index for exclusion mask ───────────────────────────────
@@ -71,7 +69,7 @@ if bars.index.tzinfo is None:
 
 exclusion_mask = compute_exclusion_mask(bars, announcement_dates)
 regime_score   = compute_regime_score(
-    lambda_series, roll_series, arrival_series, exclusion_mask
+    lambda_series, arrival_series, exclusion_mask
 )
 
 # ── Sanity checks ─────────────────────────────────────────────────────────────
@@ -88,14 +86,6 @@ def print_series_stats(name, s):
     print(f"  NaN count  : {s.isna().sum()}")
 
 print_series_stats("Kyle's lambda",      lambda_series)
-rth_mask_check = (
-    (lambda_series.index.time >= pd.Timestamp('09:30').time()) &
-    (lambda_series.index.time <= pd.Timestamp('16:00').time())
-)
-print(f"  RTH NaN count  : {lambda_series[rth_mask_check].isna().sum()}")
-print(f"  RTH valid count: {lambda_series[rth_mask_check].notna().sum()}")
-
-print_series_stats("Roll spread",        roll_series)
 rth_mask_check = (
     (lambda_series.index.time >= pd.Timestamp('09:30').time()) &
     (lambda_series.index.time <= pd.Timestamp('16:00').time())
