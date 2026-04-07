@@ -1061,14 +1061,16 @@ None
 2. Update PAPER.md, CLAUDE.md, JOURNAL.md after full rerun
    and all test results are known.
 3. Build p% intra-bar amplification framework from tick data
-   (Phase 5 scope, constructible with current data).
+   (Phase 5 / Market making implication scope).
 
-Note to self: once the final paper is complete, rethink if all
-the tests/findings we are plannig to include in the final paper
-don't take away from the credibility of the paper (ex. 
-contemporaneous, circular, confoundings, etc.). Remove, clearly
-reword, and do not emphasize tests/findings that are inherently 
-(and honestly presented as) flawed.
+Note to self: once the final paper is complete, check if any
+major tests/findings we are plannig to include in the final paper
+take away from the credibility of the paper (ex. contemporaneous, 
+circular, confoundings, etc.). 
+- Remove, clearly reword, and do not emphasize tests/findings 
+  that are inherently (and honestly presented as) flawed.
+- Then rack brain on any additional larger-scope improvements
+  to make the project more complete and defensble.
 
 ---
 
