@@ -58,97 +58,52 @@ The project has two layers:
 - Phase 6: Paper writing and code polish
 
 ## Current status
-Phase 4 being rerun with updated regime detector and exclusion
-windows. Phase 5 not started. Five research angles under evaluation.
+Phase 4 complete (initial run). Full rerun required with updated
+regime detector and exclusion windows before finalizing results.
+Phase 5 not started.
 
-Phase 0 Stream A completed:
-- load_day(), load_all_days(), resample_to_bars(),
-  remove_outliers(), compute_tfi(), compute_returns(),
-  run_ols(), test_autocorrelation(), plot_overview(),
-  plot_phase1() in src/data_loader.py
-- EXCLUDED_DATES constant in load_all_days() for holiday exclusions
-- Stream B and C: not yet started — begin in parallel with Phase 3
+Phase 0 completed: all data loading, cleaning, and signal
+functions in src/data_loader.py. Stream B and C not started.
 
-Phase 1 completed:
-- Final clean dataset: ~58.8M RTH trades, 169 trading days
-- Data quality checks complete: calendar spreads filtered,
-  price outliers removed (114,413 trades, 0.19%),
-  duplicate timestamps confirmed legitimate
-- compute_daily_stats() complete, five exploratory plots saved
-- PAPER.md Section 3 (Data) complete
+Phase 1 completed: ~58.8M RTH trades, 169 trading days.
+Key findings: two activity regimes (stable May-Sep, elevated
+Oct-Dec), modified inverse-J intraday volume, open-only
+volatility spike confirming MOC uninformed flow.
+PAPER.md Section 3 complete.
 
-Key findings from Phase 1:
-- Buy/sell volume ratio: 1.003 — balanced across sample
-- Trade sizes highly right-skewed: median 1, max 1,968 contracts
-- Two activity regimes: stable ~1M contracts/day May-Sep,
-  elevated and volatile Oct-Dec
-- Intraday volume and trade arrival: modified inverse-J shape
-  with massive MOC-driven close spike
-- Intraday volatility: open spike only, flat through close —
-  diverges from volume due to uninformed MOC order flow
-
-Phase 2 completed:
-- Research question finalized: does TFI predict returns more
-  strongly in informed trading regimes?
-- Primary signal: TFI at 1-minute resolution
-- Regime detector: continuous RegimeScore ∈ [0,1] constructed
-  from Kyle's lambda (30-min rolling), Roll spread (30-min
-  rolling), trade arrival rate (5-min rolling), combined via
-  rolling z-score standardization and logistic transformation
-- Exclusions: final 10 min (MOC), 30 min around FOMC/CPI/NFP,
-  contract roll dates + 3 preceding trading days
-- Primary regression: interaction of TFI × RegimeScore with
-  lagged return and lagged TFI as controls; Newey-West SE
-- Additional tests: horizon analysis (1/5/15-min), effect size
-  decomposition, subsample stability, transaction cost analysis,
-  out-of-sample validation
-- Robustness checks: binary regime dummy (75th/25th percentile),
-  alternative thresholds (70th/30th, 80th/20th), alternative
-  windows (15/60-min lambda/Roll, 2/10-min arrival rate),
-  forward return skip, daily VPIN as alternative regime indicator
-- paper/phase2_development.md complete
-- PAPER.md Sections 3 and 4 complete
+Phase 2 completed: research question, regime detector design,
+regression specification, and robustness plan finalized.
+See Research Design Summary section below for current spec.
+phase2_development.md and PAPER.md Sections 3-4 complete.
+Note: original detector included Roll spread and ±30 min
+announcement exclusion — both updated in Phase 4 review.
 
 Phase 3 completed:
-- src/signal_construction.py: compute_lambda, compute_roll_spread,
-  compute_arrival_rate, compute_regime_score, compute_exclusion_mask
-- src/plot_signals.py: 16 exploratory component plots + 3
-  TFI-by-regime plots saved to results/phase3/
-- src/test_signals.py: end-to-end sanity checks
-- Key stats: exclusion mask 7,487 bars (2.1%); RegimeScore 55,171
-  non-NaN RTH bars; lambda NaN rate 31.5% from zero-variance flow
-- Exploratory finding: contemporaneous TFI slope 1.87x larger in
-  high-regime — confirmed as confounded calibration, not independent
-  contribution. Retired from paper.
+- signal_construction.py, plot_signals.py, test_signals.py complete
+- 16 component plots + 3 TFI-by-regime plots in results/phase3/
+- Contemporaneous TFI amplification confirmed as confounded
+  calibration only — retired from paper as independent finding
 
-Phase 4 initial run completed (numbers will update after rerun):
-- src/formal_analysis.py: full regression pipeline
-- N = 53,787 regression bars, 169 trading days
-- Primary result: β₃ = 0.0001, p = 0.570 at T+1 — null, genuine
-  efficiency finding, primary empirical result
-- Contemporaneous: β₃ = 0.0015, z = 7.214, p < 0.001 —
-  confounded calibration, almost certainly overestimates true
-  causal amplification. Dynamic: dReturn/dTFI = β₁ + β₃ × RegimeScore
-- Horizon: no regime interaction at T+5 or T+15
-- Subsample: null consistent across May-Sep and Oct-Dec
-- All outputs saved to results/phase4/
+Phase 4 initial run completed (numbers stale — full rerun required):
+- formal_analysis.py complete. N = 53,787 bars, 169 trading days
+- Primary T+1: β₃ = 0.0001, p = 0.570 — null efficiency finding
+- Contemporaneous: β₃ = 0.0015, z = 7.214 — confounded calibration
+- Horizon and subsample: null consistent across all specifications
 
-Phase 4 pending changes (rerun required):
-- Drop Roll spread from regime detector. New detector: lambda + TAR
-  only. Roll is non-orthogonal to lambda, fails in one-sided markets,
-  and is redundant with TAR.
-- Change announcement exclusion from ±30 min to +30 min post-event
-  only. Pre-announcement window may contain genuine informed leakage
-  and should remain in analysis.
-- PAPER.md, phase2_development.md, CLAUDE.md to be updated after
-  rerun with new β₃ values.
+Phase 4 rerun pending — two detector changes:
+- Roll spread removed. New detector: lambda + TAR only
+- Announcement exclusion: +30 min post-event only (pre retained)
 
-Five research angles under evaluation before Phase 5:
-1. Lagged regime conditioning (RegimeScore_{t-1} on T+1 returns)
-2. Time-of-day interaction (midday window 11:00-13:00)
-3. Asymmetric TFI quintile interaction
-4. Regime transition dynamics
-5. Volume-conditioned TFI (absolute imbalance)
+Phase 4 additional tests planned (pending rerun):
+- Out-of-sample validation on 2026 held-out data (§4.6)
+- Midday subsample analysis 11:00-13:00 (§4.6)
+- TFI quintile interaction with Bonferroni correction (§4.6)
+- Regime transition dynamics (§4.6)
+- Lagged regime conditioning RegimeScore_{t-1} on T+1 (§4.7)
+
+Regime detector orthogonality: lambda + TAR confirmed as best
+achievable from trades-only data. All alternatives reviewed and
+rejected. Stated as data limitation in paper.
 
 ---
 
@@ -269,21 +224,16 @@ Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t +
 β₃ is the primary test statistic.
 Formal result: β₃ = 0.0001, p = 0.570 — null result.
 
-**Contemporaneous characterization:**
-Return_t = α + β₁·TFI_t + β₂·RegimeScore_t +
-           β₃·(TFI_t × RegimeScore_t) +
-           β₅·TFI_{t-1} + ε_t
-Validates regime detector — not a predictive test.
-Formal result: β₃ = 0.0015, z = 7.214, p < 0.001.
-
 **Key papers:**
 - Kyle (1985) — Econometrica — lambda and informed trading
 - Glosten and Milgrom (1985) — JFE — adverse selection framework
 - Cont, Kukanov, Stoikov (2014) — JFEC — OFI predicting returns
 - Roll (1984) — JF — implicit spread estimator
 - Easley, Lopez de Prado, O'Hara (2012) — RFS — VPIN
-- Ahern (2018) — NBER — informed trading detection; absolute order
-  imbalance and negative TFI autocorrelation are most accurate
+- Ahern (2018) — NBER — informed trading proxies; order imbalance
+  and flow autocorrelation most accurate but circular with TFI
+- Dufour and Engle (2000) — JF — inter-trade duration and
+  informed trading; theoretical basis for TAR as regime component
 
 ## Data
 - Source: Databento, GLBX.MDP3, Trades schema
@@ -328,7 +278,6 @@ databento library
 
 ## Rules for Claude Code in this project
 - Help debug code I wrote — do not write code for me
-- Explain concepts I am trying to understand
 - Point out methodological errors or oversights
 - Do not generate analysis, write paper sections, or interpret
   results

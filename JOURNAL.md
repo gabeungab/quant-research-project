@@ -861,6 +861,220 @@ non-null changes the paper's primary framing.
 ## 2026-04-06
 
 **Session Summary:**
+- Literature review on maximum orthogonality of informed trading
+  regime detectors from trades-only data. Confirmed lambda + TAR is
+  the best achievable detector given our data constraints.
+- Finalized decision to include Angles 1, 2, and 3 from the five
+  angles discussed yesterday. Dropped Angle 5.
+- Angle 4 (lagged RegimeScore) already locked in from prior session.
+
+**Findings:**
+
+REGIME DETECTOR ORTHOGONALITY — Literature Review:
+
+Core principle: orthogonality to TFI means independence from the
+DIRECTION of signed order flow. TFI = (BuyVol − SellVol) /
+(BuyVol + SellVol). Any measure depending on which side initiated
+trades shares informational content with TFI. Measures depending
+only on TIMING, SIZE, or TOTAL VOLUME of trades are maximally
+orthogonal.
+
+Candidate 1 — Inter-trade duration / ACD residual (Dufour and
+Engle, 2000, Journal of Finance):
+- Measures the unexpected component of time between trades after
+  removing intraday seasonality and autocorrelation via ACD model.
+  Shorter-than-expected durations signal informed trading without
+  using direction. Completely direction-agnostic.
+- Verdict: TAR already captures this concept (trades per minute ≈
+  inverse of mean duration). ACD residual is marginally more precise
+  but measures the same underlying idea. Implementation complexity
+  not justified for marginal orthogonality gain. TAR retained.
+
+Candidate 2 — Trade size distribution (coefficient of variation
+of trade sizes within rolling window):
+- Size is direction-agnostic. Informed traders may use clustered
+  large/medium trades. Theoretically motivated by stealth trading
+  literature (Kyle, 1985).
+- Verdict: In ES futures (a highly liquid instrument), trade size
+  distribution is dominated by retail tick (size 1), extremely
+  right-skewed, and unstable at 1-minute resolution. Empirical
+  evidence for size-based detection is weaker in futures than
+  equities. Rejected.
+
+Candidate 3 — Realized price variability (direction-agnostic):
+- Measures magnitude of price movement independent of direction.
+  Informed trading causes price to move more per unit time.
+- Verdict: Too noisy as a regime detector. Directly related to
+  Return_t which appears as a control in the regression — adding
+  it to the regime score creates complications. Also closely
+  related to lambda. Rejected.
+
+Candidate 4 — VCV (Variance-to-Count Ratio, Hu et al., 2023):
+- Ratio of cross-sectional variance of volume to average volume
+  count. Direction-agnostic. Positively correlated with all PIN
+  measures in the literature.
+- Verdict: Designed for daily or multi-day windows. Unstable at
+  intraday 30-minute rolling resolution with our bar structure.
+  Wrong time scale for our application. Rejected.
+
+Candidate 5 — No-trade probability / Poisson rate (Easley and
+O'Hara, 1992):
+- Probability of zero trades in a time interval carries information
+  about informed trading presence. Direction-agnostic.
+- Verdict: ES futures trade arrival is so high that probability of
+  zero trades in any reasonable window is effectively zero. This
+  measure is designed for illiquid instruments. Inapplicable.
+  Rejected.
+
+FINAL VERDICT on orthogonality:
+Lambda + TAR is the best practically achievable regime detector
+from trades-only data for ES futures, maximizing orthogonality to
+TFI direction. No candidate offers a meaningful improvement over
+this two-component detector given our data and time-scale
+constraints. This validates the data continuation section argument
+that LOB data is required for a truly orthogonal regime detector.
+This data limitation will be stated explicitly in the paper.
+
+ANGLE DECISIONS — Locked In:
+
+Angle 4 (Lagged RegimeScore): Already locked in from prior session.
+Use RegimeScore_{t-1} to condition TFI_t on Return_{t+1}. Fully
+predetermined regime — removes all simultaneity. Almost certainly
+null, but strengthens efficiency story across all conditioning
+structures tested.
+
+Angle 1 — Asymmetric TFI Quintile Interaction:
+- Theoretical motivation: the current regression assumes the
+  TFI-regime interaction is linear — every unit of TFI produces
+  the same incremental return regardless of whether TFI = 0.05
+  or TFI = 0.50. Kyle (1985) does not predict this. Informed
+  traders disguise orders and do not trade at maximum TFI.
+  Extreme TFI values may reflect uninformed herding or mechanical
+  flow rather than informed accumulation. The moderate-high TFI
+  range (4th quintile, 60th-80th percentile) may be where
+  informed trading concentrates. A linear interaction averages
+  across all quintiles and misses this concentration.
+- Test: replace continuous TFI in the interaction with quintile
+  dummy variables. Specification:
+    Return_{t+1} = α + Σ_q (β_q · Q_q · RegimeScore) + controls
+  where Q_q is an indicator for TFI falling in quintile q.
+  Apply Bonferroni correction (p < 0.01 per quintile to maintain
+  family-wise α = 0.05). This is pre-registered and theoretically
+  motivated.
+- Circularity argument for non-null results: circularity predicts
+  monotonically increasing quintile effects — lambda is higher
+  when |TFI| is higher, so the mechanical relationship should be
+  strongest in extreme quintiles. If instead we find a hump-shaped
+  pattern (moderate quintiles significant, extreme quintiles not),
+  this is inconsistent with a pure circularity explanation and
+  more consistent with genuine informed trading concentration in
+  the moderate-high flow range. Both interpretations acknowledged.
+
+Angle 2 — Regime Transition Dynamics:
+- Theoretical motivation: sustained high-regime bars and the first
+  bar after a low-to-high regime transition may have different TFI
+  dynamics. If informed traders front-run regime shifts — trading
+  most aggressively precisely as the market transitions into an
+  informed state, creating the transition itself — then TFI's
+  predictive power should concentrate at transition bars rather
+  than sustained high-regime bars. This is consistent with Kyle
+  (1985) where informed traders optimally time entry.
+- Test: compute binary transition indicator:
+    TransitionToHigh_t = 1 if RegimeScore_t > 0.5 and
+                         RegimeScore_{t-1} ≤ 0.5; else 0
+  Add as interaction term:
+    Return_{t+1} = α + β₁·TFI + β₂·RegimeScore
+                 + β₃·(TFI × RegimeScore)
+                 + β₄·(TFI × TransitionToHigh)
+                 + controls
+  β₄ tests whether TFI is more predictive at transition bars
+  than sustained high-regime bars.
+- Circularity argument for non-null results: this is the most
+  circularity-robust of the three angles. Circularity predicts
+  a smooth continuous effect increasing with RegimeScore level —
+  it does NOT predict a specific discrete effect at the 0.5
+  crossing. A significant β₄ concentrated at transitions while
+  β₃ for sustained high-regime remains null is qualitatively
+  different from what circularity predicts and is more consistent
+  with genuine informed trading dynamics at regime shifts. Both
+  interpretations still acknowledged.
+
+Angle 3 — Time-of-Day Masking (midday window 11:00-13:00):
+- Theoretical motivation: the regime detector operates most
+  accurately during midday for three independent reasons: (a) lambda
+  estimation is most stable — the rolling 30-bar window is filled
+  entirely with current-session data, with no overnight gap or
+  warmup contamination; (b) TAR z-score is most informative —
+  midday has lowest intraday baseline activity, so deviations from
+  the rolling mean reflect genuine changes in market participation
+  rather than time-of-day structure; (c) structural contamination
+  is absent — no overnight information incorporation at open, no
+  MOC proximity at close. Removing Roll strengthens this case
+  because Roll's artificial midday elevation (artifact of directional
+  price moves inflating serial covariance) no longer contaminates
+  the composite score.
+- Test: restrict regression sample to bars with timestamps between
+  11:00 and 13:00 ET. Run primary T+1 specification on this
+  subsample. Compare β₃ to full-sample result.
+- Circularity argument for non-null results: if midday window
+  produces significant β₃ while full sample is null, two
+  interpretations exist. (A) The regime detector works better in
+  midday, revealing genuine signal diluted by open/close noise in
+  the full sample — consistent with the theoretical motivation.
+  (B) Midday has stronger circularity because lambda is estimated
+  most stably and therefore most tightly correlated with TFI.
+  Response: interpretation (B) predicts circularity should be
+  worst at the open (highest lambda estimation variance, most
+  volatile price moves, strongest signed flow), not midday. A
+  midday-specific result is therefore more consistent with
+  interpretation (A). Both interpretations are acknowledged in
+  the paper; neither can be fully ruled out.
+
+Angle 5 — Volume-Conditioned TFI: DROPPED.
+- Theoretically valid (absolute imbalance normalized by typical
+  volume is more aligned with informed price impact theory) but
+  ROI is not comparable to angles 1, 2, and 3. Does not improve
+  orthogonality (still direction-dependent). Intraday volume
+  normalization introduces look-ahead bias or instability in early
+  sample bars. If primary angles produce null results, this angle
+  is very unlikely to reverse them. Moved to future research
+  section as a potential refinement with LOB data.
+
+**Open questions:**
+None
+
+**Next step:**
+1. Implement Roll removal and post-only exclusion in
+   signal_construction.py. Update formal_analysis.py to include
+   all tests in one complete pipeline run:
+   - Primary regression (returns at T+1)
+   - Contemporaneous characterization (reutnrs at T)
+   - Horizon analysis (T+5, T+15)
+   - Subsample stability (May-Sep, Oct-Dec)
+   - Transaction cost analysis
+   - Out-of-sample validation (2026 held-out, first run)
+   - Lagged regime conditioning
+   - Midday subsample analysis (11:00-13:00)
+   - TFI quintile interaction (with Bonferroni correction)
+   - Regime transition dynamics
+   Record all key updated values.
+2. Update PAPER.md, CLAUDE.md, JOURNAL.md after full rerun
+   and all test results are known.
+3. Build p% intra-bar amplification framework from tick data
+   (Phase 5 scope, constructible with current data).
+
+Note to self: once the final paper is complete, rethink if all
+the tests/findings we are plannig to include in the final paper
+don't take away from the credibility of the paper (ex. 
+contemporaneous, circular, confoundings, etc.). Remove, clearly
+reword, and do not emphasize tests/findings that are inherently 
+(and honestly presented as) flawed.
+
+---
+
+## 2026-04-07
+
+**Session Summary:**
 - 
 
 **Findings:**
