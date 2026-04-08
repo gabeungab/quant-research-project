@@ -1077,6 +1077,145 @@ circular, confoundings, etc.).
 ## 2026-04-07
 
 **Session Summary:**
+- Implemented Roll removal and post-only announcement exclusion in
+  signal_construction.py. Verified test_signals.py output correct.
+- Rewrote formal_analysis.py to include all Phase 4 tests in one
+  complete pipeline: primary, contemporaneous (lagged regime spec),
+  horizon, subsample, OOS, lagged regime conditioning, midday
+  subsample, TFI quintile interaction, regime transition dynamics,
+  transaction cost analysis.
+- Added OOS announcement dates for 2026 (FOMC, CPI, NFP).
+- Fixed transition dynamics exclusion mask bug — prior excluded
+  bars no longer falsely flagged as regime transitions.
+- Ran full pipeline. Recorded all results.
+- Resolved p% intra-bar framework scope
+- Discussed OOS debugging plan and multi-interpretation sections.
+- Identified two additional diagnostic tests to run before
+  finalizing interpretations.
+
+**Findings:**
+
+Regime detector update (Roll removed, post-only exclusion):
+- Exclusion mask: 7,367 bars (was 7,487) — 120 bar reduction
+  from removing pre-announcement windows
+- RegimeScore non-NaN bars: 57,175 (was 55,171) — increase from
+  removing Roll's NaN propagation
+- Fraction > 0.5: 42.1% (was 42.8%)
+
+Regression sample: N = 55,634 bars (was 53,787). Increase from
+retaining pre-announcement bars and removing Roll NaN propagation.
+
+Primary regression (T+1) — null result confirmed:
+- β₃ = 0.000203, z = 0.964, p = 0.335 — null
+- β₁ (unconditional TFI) = 0.000628, p < 0.001 — stable
+- lag_return = -0.488, p < 0.001 — dominant mean reversion
+- R² = 0.236
+
+Contemporaneous characterization — major change from initial run:
+- β₃ = 0.000425, z = 1.830, p = 0.067 — NOT significant
+- Initial run had β₃ = 0.0015, z = 7.214, p < 0.001
+- Collapse is definitive evidence the initial finding was
+  substantially circularity-driven. With Roll removed and
+  RegimeScore lagged (t-1), the mechanical relationship breaks
+  and the result largely disappears. The 2.7x amplification
+  calibration is no longer empirically supported. Market maker
+  application reframed: contemporaneous amplification is fragile
+  to specification and cannot be presented as a calibrated
+  quantitative input.
+
+Horizon analysis — null confirmed:
+- T+5: β₃ = 0.000012, p = 0.960
+- T+15: β₃ = -0.000098, p = 0.709
+
+Subsample stability — null consistent:
+- May-Sep: β₃ = 0.000177, p = 0.524
+- Oct-Dec: β₃ = 0.000251, p = 0.399
+
+Out-of-sample validation (2026 Jan-Mar) — unexpected significance:
+- β₃ = 0.000239, z = 2.908, p = 0.004, N = 14,774
+- In-sample null (p = 0.335) but OOS significant (p = 0.004) —
+  opposite of expected. Three candidate explanations: (1) episodic
+  significance driven by a few high-volatility weeks in an unusual
+  macro environment (government shutdown, geopolitical uncertainty,
+  Fed leadership transition); (2) sample composition difference —
+  OOS period had elevated implied volatility inflating lambda and
+  RegimeScore mechanically; (3) false positive from small sample
+  (46 days vs 169 in-sample). Cannot determine which explanation
+  is correct without diagnostic testing.
+
+Lagged regime conditioning (robustness) — null confirmed:
+- β₃ = -0.000089, z = -0.417, p = 0.677
+- Cleanest possible test — no simultaneity of any kind
+- Strengthens efficiency finding: no carry-forward of regime-
+  conditioned adverse selection to next bar
+
+Midday subsample (11:00-13:00) — directionally interesting:
+- β₃ = 0.000549, z = 1.398, p = 0.162, N = 20,279
+- Coefficient larger than full-sample (0.000203) but not
+  significant. Cannot distinguish genuine signal diluted by
+  open/close noise from stronger circularity in midday. No
+  additional test can resolve this with trades-only data.
+
+TFI quintile interaction — null, monotonic pattern:
+- No quintile survives Bonferroni correction (α = 0.01)
+- Q5: p = 0.047 (fails corrected threshold)
+- Pattern is monotonic Q1→Q5, not hump-shaped — more consistent
+  with circularity explanation than genuine informed trading
+  concentration in moderate quintiles
+
+Regime transition dynamics — most novel finding:
+- Sustained β₃ (tfi_x_regime): 0.000140, p = 0.512 — null
+- Transition β (tfi_x_transition): 0.000275, p = 0.018 — marginal
+- 4,376 transition bars (7.9% of sample)
+- TFI is more predictive at first bar of low-to-high regime
+  transition than during sustained high-regime conditions
+- Consistent with Kyle (1985) informed trader timing; but
+  circularity interpretation not ruled out (large RegimeScore
+  delta at transition could mechanically inflate interaction)
+- p = 0.018 significant at α = 0.05, not at α = 0.01. Marginal.
+
+Transaction cost: contemporaneous β₃ not significant so
+break-even analysis no longer empirically grounded.
+
+**Open questions:**
+
+OOS diagnostic — five tests pending before finalizing interpretation:
+1. Day-by-day rolling β₃ across OOS weeks — is significance
+   concentrated in specific episodes?
+2. OOS vs in-sample RegimeScore distribution comparison — is
+   the OOS sample drawn from the same population?
+3. OOS vs in-sample realized volatility comparison — does
+   elevated OOS volatility mechanically inflate RegimeScore?
+4. OOS result by month (January vs February) — which month
+   drives the significance?
+5. Permutation test (1,000 shuffles of fwd_return) — is OOS
+   β₃ in the tail of the null distribution?
+
+Transition dynamics diagnostic — one test pending:
+- Bin transition bars by size of RegimeScore delta at transition.
+  Under circularity, larger deltas should produce stronger
+  transition coefficients. Under genuine signal, effect should
+  be consistent regardless of delta magnitude. This is the only
+  available differentiating test with trades-only data.
+
+Decide whether Phase 5 should have implementable coding or goes 
+directly into PAPER.md as just implications.
+- Based on market making implication strength of any non-null findings.
+
+**Next step:**
+1. Reanalyze phase4 findings to grasp ideas more clearly and generate
+   more questions to test (literally and figuratively) the findings.
+2. Run five OOS diagnostic tests and transition dynamics diagnostic. 
+3. Finalize Phase 4, and update JOURNAL.md, CLAUDE.md, PAPER.md, 
+   phase4_findings.md accordingly (final numbers + interpretations).
+4. Reframe Phase 5: p% framework moved to future research.
+   Market maker implications outline rewritten about non-null findings.
+
+---
+
+## 2026-04-08
+
+**Session Summary:**
 - 
 
 **Findings:**

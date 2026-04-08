@@ -84,22 +84,30 @@ Phase 3 completed:
 - Contemporaneous TFI amplification confirmed as confounded
   calibration only — retired from paper as independent finding
 
-Phase 4 initial run completed (numbers stale — full rerun required):
-- formal_analysis.py complete. N = 53,787 bars, 169 trading days
-- Primary T+1: β₃ = 0.0001, p = 0.570 — null efficiency finding
-- Contemporaneous: β₃ = 0.0015, z = 7.214 — confounded calibration
-- Horizon and subsample: null consistent across all specifications
+Phase 4 rerun completed (updated detector, all tests run):
+- formal_analysis.py complete. N = 55,634 bars, 169 trading days
+- Primary T+1: β₃ = 0.000203, p = 0.335 — null efficiency finding
+- Contemporaneous (lagged regime spec): β₃ = 0.000425, p = 0.067
+  — not significant; collapse from initial run (β₃ = 0.0015,
+  p < 0.001) confirms initial finding was circularity-driven
+- Horizon: null at T+5 (p = 0.960) and T+15 (p = 0.709)
+- Subsample: null in May-Sep (p = 0.524) and Oct-Dec (p = 0.399)
+- OOS (2026 Jan-Mar): β₃ = 0.000239, p = 0.004 — significant but
+  requires diagnostic testing before interpretation
+- Lagged regime conditioning: β₃ = -0.000089, p = 0.677 — null
+- Midday subsample: β₃ = 0.000549, p = 0.162 — null but
+  directionally larger than full-sample result
+- TFI quintile interaction: no quintile survives Bonferroni (α=0.01)
+- Regime transition dynamics: sustained p = 0.512 (null),
+  transition p = 0.018 (marginal) — most novel finding
+- All outputs saved to results/phase4/
 
-Phase 4 rerun pending — two detector changes:
-- Roll spread removed. New detector: lambda + TAR only
-- Announcement exclusion: +30 min post-event only (pre retained)
-
-Phase 4 additional tests planned (pending rerun):
-- Out-of-sample validation on 2026 held-out data (§4.6)
-- Midday subsample analysis 11:00-13:00 (§4.6)
-- TFI quintile interaction with Bonferroni correction (§4.6)
-- Regime transition dynamics (§4.6)
-- Lagged regime conditioning RegimeScore_{t-1} on T+1 (§4.7)
+Phase 4 diagnostics pending (before finalizing interpretations):
+- OOS five diagnostic tests: rolling β₃ by week, RegimeScore
+  distribution comparison, realized volatility comparison, result
+  by month, permutation test
+- Transition dynamics delta-magnitude test: does transition β vary
+  with size of RegimeScore delta at crossing?
 
 Regime detector orthogonality: lambda + TAR confirmed as best
 achievable from trades-only data. All alternatives reviewed and
@@ -283,4 +291,3 @@ databento library
   results
 - When I show you an error, explain what caused it before giving
   the fix
-  
