@@ -356,6 +356,261 @@ print(f"    p-value:           {model_oos.pvalues['tfi_x_regime']:.4f}")
 print(f"    z-stat:            {model_oos.tvalues['tfi_x_regime']:.3f}")
 
 # =============================================================================
+# OOS DIAGNOSTIC TESTS
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("OOS DIAGNOSTIC TESTS — Investigating p=0.004 significance")
+print("=" * 60)
+
+# ── Diagnostic 1: Residual autocorrelation beyond maxlags=5 ──────────────────
+print("\n--- Diagnostic 1: OOS Residual Autocorrelation ---")
+print("  Tests whether HAC maxlags=5 was sufficient for OOS period.")
+print("  If residuals autocorrelated beyond lag 5, standard errors")
+print("  are underestimated and z-stat is inflated.")
+
+for lag in range(1, 11):
+    ac = model_oos.resid.autocorr(lag=lag)
+    flag = ' ← beyond maxlags' if lag > 5 else ''
+    print(f"    Lag {lag:2d}: {ac:+.4f}{flag}")
+
+# ── Diagnostic 2: RegimeScore distribution comparison OOS vs in-sample ────────
+print("\n--- Diagnostic 2: RegimeScore Distribution Comparison ---")
+print("  Tests whether OOS period is drawn from the same regime")
+print("  distribution as the in-sample period.")
+
+is_stats = reg['regime_score'].describe()
+oos_stats = reg_oos['regime_score'].describe()
+
+print(f"\n  {'Metric':<20} {'In-sample':>12} {'OOS':>12} {'Difference':>12}")
+print(f"  {'-'*58}")
+for metric in ['mean', 'std', '25%', '50%', '75%']:
+    diff = oos_stats[metric] - is_stats[metric]
+    print(f"  {metric:<20} {is_stats[metric]:>12.4f} "
+          f"{oos_stats[metric]:>12.4f} {diff:>+12.4f}")
+
+is_high_pct = (reg['regime_score'] > 0.5).mean()
+oos_high_pct = (reg_oos['regime_score'] > 0.5).mean()
+print(f"\n  Fraction high-regime (>0.5):")
+print(f"    In-sample: {is_high_pct:.4f} ({is_high_pct*100:.1f}%)")
+print(f"    OOS:       {oos_high_pct:.4f} ({oos_high_pct*100:.1f}%)")
+print(f"    Difference: {(oos_high_pct - is_high_pct):+.4f}")
+
+# ── Diagnostic 3: Realized volatility comparison ──────────────────────────────
+print("\n--- Diagnostic 3: Realized Volatility Comparison ---")
+print("  Tests whether elevated OOS volatility inflates lambda and")
+print("  RegimeScore mechanically, producing spurious interaction.")
+
+is_vol = reg['lag_return'].std()
+oos_vol = reg_oos['lag_return'].std()
+is_vol_ann = is_vol * np.sqrt(390 * 169)
+oos_vol_ann = oos_vol * np.sqrt(390 * 46)
+
+print(f"\n  1-minute return std:")
+print(f"    In-sample: {is_vol:.6f} ({is_vol*1e4:.3f} bps per bar)")
+print(f"    OOS:       {oos_vol:.6f} ({oos_vol*1e4:.3f} bps per bar)")
+print(f"    Ratio (OOS/IS): {oos_vol/is_vol:.3f}x")
+
+# Compare lambda distributions
+is_lambda_mean = reg['regime_score'].mean()
+oos_lambda_mean = reg_oos['regime_score'].mean()
+print(f"\n  Mean RegimeScore (proxy for average lambda level):")
+print(f"    In-sample: {is_lambda_mean:.4f}")
+print(f"    OOS:       {oos_lambda_mean:.4f}")
+print(f"    Ratio:     {oos_lambda_mean/is_lambda_mean:.3f}x")
+
+# ── Diagnostic 4: OOS result by month ─────────────────────────────────────────
+print("\n--- Diagnostic 4: OOS Result by Month ---")
+print("  Tests whether significance is driven by a specific month.")
+
+oos_months = {
+    'January 2026':  (pd.Timestamp('2026-01-01').date(),
+                      pd.Timestamp('2026-01-31').date()),
+    'February 2026': (pd.Timestamp('2026-02-01').date(),
+                      pd.Timestamp('2026-02-28').date()),
+}
+
+for month_label, (start, end) in oos_months.items():
+    oos_dates = pd.Series(reg_oos.index.date, index=reg_oos.index)
+    reg_month = reg_oos[(oos_dates >= start) & (oos_dates <= end)]
+    reg_month = reg_month.dropna(subset=REGRESSION_COLS)
+
+    if len(reg_month) < 200:
+        print(f"\n  {month_label}: N={len(reg_month)} — too few obs, skipping")
+        continue
+
+    y_m = reg_month['fwd_return']
+    X_m = sm.add_constant(reg_month[['tfi', 'regime_score',
+                                      'tfi_x_regime',
+                                      'lag_return', 'lag_tfi']])
+    model_m = sm.OLS(y_m, X_m).fit(cov_type='HAC', cov_kwds={'maxlags': 5})
+
+    print(f"\n  {month_label} | N={int(model_m.nobs):,}")
+    print(f"    β₃ (tfi_x_regime): {model_m.params['tfi_x_regime']:.6f}")
+    print(f"    z-stat:            {model_m.tvalues['tfi_x_regime']:.3f}")
+    print(f"    p-value:           {model_m.pvalues['tfi_x_regime']:.4f}")
+
+# Note: March 2026 only has ~3-6 trading days in OOS — skip
+print(f"\n  Note: March 2026 has only ~3 trading days in OOS window,")
+print(f"  insufficient for separate regression.")
+
+# ── Diagnostic 5: Rolling weekly β₃ across OOS period ─────────────────────────
+print("\n--- Diagnostic 5: Rolling Weekly β₃ Across OOS Period ---")
+print("  Tests whether significance is concentrated in specific")
+print("  episodes or stable across the OOS period.")
+
+oos_dates_series = pd.Series(reg_oos.index.date, index=reg_oos.index)
+oos_unique_dates = sorted(oos_dates_series.unique())
+window_size = 10  # 2-week rolling window (10 trading days)
+
+print(f"\n  Rolling {window_size}-day window β₃ estimates:")
+print(f"  {'Window end':<15} {'N':>6} {'β₃':>12} {'p-value':>10}")
+print(f"  {'-'*47}")
+
+rolling_results = []
+for i in range(window_size - 1, len(oos_unique_dates)):
+    window_start = oos_unique_dates[i - window_size + 1]
+    window_end   = oos_unique_dates[i]
+    mask = ((oos_dates_series >= window_start) &
+            (oos_dates_series <= window_end))
+    reg_win = reg_oos[mask].dropna(subset=REGRESSION_COLS)
+
+    if len(reg_win) < 150:
+        continue
+
+    y_w = reg_win['fwd_return']
+    X_w = sm.add_constant(reg_win[['tfi', 'regime_score',
+                                    'tfi_x_regime',
+                                    'lag_return', 'lag_tfi']])
+    try:
+        model_w = sm.OLS(y_w, X_w).fit(
+            cov_type='HAC', cov_kwds={'maxlags': 5}
+        )
+        b3 = model_w.params['tfi_x_regime']
+        pv = model_w.pvalues['tfi_x_regime']
+        rolling_results.append((window_end, len(reg_win), b3, pv))
+        sig = '***' if pv < 0.01 else '**' if pv < 0.05 else ''
+        print(f"  {str(window_end):<15} {len(reg_win):>6,} "
+              f"{b3:>12.6f} {pv:>10.4f} {sig}")
+    except Exception:
+        continue
+
+if rolling_results:
+    b3_vals = [r[2] for r in rolling_results]
+    pv_vals = [r[3] for r in rolling_results]
+    n_sig = sum(1 for p in pv_vals if p < 0.05)
+    print(f"\n  Summary:")
+    print(f"    Windows tested: {len(rolling_results)}")
+    print(f"    Windows significant (p<0.05): {n_sig}")
+    print(f"    β₃ range: [{min(b3_vals):.6f}, {max(b3_vals):.6f}]")
+    print(f"    If significance concentrated in 1-2 windows: episodic")
+    print(f"    If significant across most windows: more structural")
+
+# ── Diagnostic 6: OOS TFI distribution comparison ─────────────────────────────
+print("\n--- Diagnostic 6: OOS TFI Distribution Comparison ---")
+print("  Tests whether OOS period had more extreme TFI values.")
+print("  Extreme TFI + circularity → mechanically larger β₃.")
+
+is_tfi_stats = reg['tfi'].describe()
+oos_tfi_stats = reg_oos['tfi'].describe()
+
+print(f"\n  {'Metric':<20} {'In-sample':>12} {'OOS':>12} {'Difference':>12}")
+print(f"  {'-'*58}")
+for metric in ['mean', 'std', '25%', '50%', '75%', 'max']:
+    diff = oos_tfi_stats[metric] - is_tfi_stats[metric]
+    print(f"  {metric:<20} {is_tfi_stats[metric]:>12.4f} "
+          f"{oos_tfi_stats[metric]:>12.4f} {diff:>+12.4f}")
+
+is_extreme = (reg['tfi'].abs() > 0.3).mean()
+oos_extreme = (reg_oos['tfi'].abs() > 0.3).mean()
+print(f"\n  Fraction of bars with |TFI| > 0.3 (extreme imbalance):")
+print(f"    In-sample: {is_extreme:.4f} ({is_extreme*100:.1f}%)")
+print(f"    OOS:       {oos_extreme:.4f} ({oos_extreme*100:.1f}%)")
+if oos_extreme > is_extreme * 1.1:
+    print(f"  → OOS has more extreme TFI: consistent with mechanical")
+    print(f"    inflation hypothesis via circularity.")
+else:
+    print(f"  → OOS TFI distribution similar to in-sample.")
+
+# ── Diagnostic 7: Permutation test ────────────────────────────────────────────
+print("\n--- Diagnostic 7: Permutation Test (N=1000) ---")
+print("  Tests whether OOS β₃ is in the tail of the null distribution.")
+print("  Running 1000 permutations of fwd_return in OOS sample...")
+
+np.random.seed(42)
+n_permutations = 1000
+perm_b3 = []
+
+y_oos_vals = reg_oos['fwd_return'].values.copy()
+X_oos_vals = sm.add_constant(
+    reg_oos[['tfi', 'regime_score', 'tfi_x_regime',
+              'lag_return', 'lag_tfi']]
+).values
+
+for _ in range(n_permutations):
+    y_perm = np.random.permutation(y_oos_vals)
+    try:
+        b = np.linalg.lstsq(X_oos_vals, y_perm, rcond=None)[0]
+        perm_b3.append(b[3])  # index 3 = tfi_x_regime after const
+    except Exception:
+        continue
+
+perm_b3 = np.array(perm_b3)
+actual_b3 = model_oos.params['tfi_x_regime']
+perm_pvalue = (perm_b3 >= actual_b3).mean()
+
+print(f"\n  Actual OOS β₃: {actual_b3:.6f}")
+print(f"  Permutation null β₃: mean={perm_b3.mean():.6f}, "
+      f"std={perm_b3.std():.6f}")
+print(f"  Permutation p-value (fraction ≥ actual): {perm_pvalue:.4f}")
+print(f"  Parametric HAC p-value:                  "
+      f"{model_oos.pvalues['tfi_x_regime']:.4f}")
+if perm_pvalue < 0.05:
+    print(f"  → Actual β₃ is in the top {perm_pvalue*100:.1f}% of the")
+    print(f"    permutation distribution. Result is NOT purely spurious.")
+else:
+    print(f"  → Actual β₃ is NOT in the tail of the permutation")
+    print(f"    distribution. Result may be spurious or driven by")
+    print(f"    serial dependence not captured by simple permutation.")
+print(f"\n  Note: permutation test breaks time series dependence.")
+print(f"  A non-significant permutation p-value may reflect serial")
+print(f"  correlation rather than a false positive. Compare with")
+print(f"  HAC p-value and rolling window results for full picture.")
+
+# =============================================================================
+# OOS LAMBDA LEVEL COMPARISON
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("OOS LAMBDA LEVEL COMPARISON")
+print("=" * 60)
+print("  Tests whether OOS lambda was structurally elevated,")
+print("  mechanically inflating RegimeScore and β₃ via circularity.")
+
+# Recompute lambda stats for OOS reg_oos already built
+# regime_score serves as proxy since lambda is the dominant component
+is_rs_mean = reg['regime_score'].mean()
+oos_rs_mean = reg_oos['regime_score'].mean()
+is_rs_p75 = reg['regime_score'].quantile(0.75)
+oos_rs_p75 = reg_oos['regime_score'].quantile(0.75)
+is_rs_p90 = reg['regime_score'].quantile(0.90)
+oos_rs_p90 = reg_oos['regime_score'].quantile(0.90)
+
+print(f"\n  RegimeScore percentile comparison:")
+print(f"  {'Percentile':<15} {'In-sample':>12} {'OOS':>12} {'OOS/IS ratio':>14}")
+print(f"  {'-'*55}")
+for label, is_val, oos_val in [
+    ('Mean', is_rs_mean, oos_rs_mean),
+    ('75th', is_rs_p75, oos_rs_p75),
+    ('90th', is_rs_p90, oos_rs_p90),
+]:
+    ratio = oos_val / is_val if is_val > 0 else float('nan')
+    print(f"  {label:<15} {is_val:>12.4f} {oos_val:>12.4f} {ratio:>14.3f}x")
+
+print(f"\n  If OOS mean RegimeScore is materially higher (>1.1x),")
+print(f"  lambda-inflation is a plausible contributor to OOS significance.")
+
+# =============================================================================
 # 7. LAGGED REGIME CONDITIONING (RegimeScore_{t-1} on T+1)
 # =============================================================================
 
