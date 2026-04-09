@@ -1213,7 +1213,174 @@ directly into PAPER.md as just implications.
 
 ---
 
-## 2026-04-08
+## 2026-04-09
+
+**Session Summary:**
+- Deep review of all Phase 4 test results. Worked through
+  conceptual interpretations of every test finding, including
+  what each result means for the research question, which
+  interpretations can be ruled out, and which remain open.
+- Identified two critical issues requiring additional diagnostic
+  testing before interpretations can be finalized: the OOS
+  significance anomaly (p=0.004) and the transition dynamics
+  circularity question.
+- Wrote OOS Diagnostic Tests block and OOS Lambda Level
+  Comparison block in formal_analysis.py. Not yet run.
+  All other diagnostic sections (regime score autocorrelation,
+  stable regime conditions test, transition delta magnitude,
+  transition threshold robustness) planned but not yet written.
+
+**Findings:**
+
+Conceptual interpretations of all Phase 4 results:
+
+Primary regression (T+1, β₃=0.000203, p=0.335):
+- Null result is clean and non-confounded. ES futures incorporate
+  regime-conditioned TFI within one 1-minute bar. Primary finding.
+- No additional concerns or open questions on this result.
+
+Contemporaneous characterization (T+0, β₃=0.000425, p=0.067):
+- p=0.067 is a mixture of two explanations: (1) residual TFI-
+  Return confounding within bar t, irreducible with trades-only
+  data; (2) possible genuine predictive signal from lagged
+  RegimeScore on same-bar TFI-return dynamics. Cannot cleanly
+  separate without knowing lag-1 autocorrelation of RegimeScore.
+  Need to run reg['regime_score'].autocorr(lag=1) — if >0.85,
+  residual confounding dominates; if <0.70, genuine signal may
+  contribute. Lag-1 autocorr falls between thresholds, so
+  interpretation will be mixed regardless.
+- Collapse from β₃=0.0015 (initial run, confounded) to 0.000425
+  (lagged regime spec, not significant) is itself a finding:
+  the initial contemporaneous result was substantially circularity-
+  driven. Market maker calibration application no longer supported.
+
+Horizon analysis (T+5 p=0.960, T+15 p=0.709):
+- Clean null across all horizons. No open questions.
+
+Subsample stability (May-Sep p=0.524, Oct-Dec p=0.399):
+- Both null and consistent. The directional pattern (higher β₃
+  and lower p in Oct-Dec) is consistent with the hypothesis that
+  the regime detector operates better in more volatile markets,
+  but this cannot be confirmed from comparing two non-significant
+  p-values. Do not present as a finding — present only as null
+  result consistent across both activity regimes.
+
+OOS validation (β₃=0.000239, p=0.004):
+- Significance is counterintuitive given in-sample null.
+  Candidate explanations: (1) episodic — driven by a specific
+  macro episode in the 46-day window rather than structural
+  predictability; (2) structural regime difference — OOS market
+  conditions better suited for regime detector accuracy;
+  (3) HAC misspecification for short unusual period; (4) false
+  positive from small sample; (5) elevated volatility mechanically
+  inflating lambda and RegimeScore. Cannot determine which without
+  diagnostic tests. Five diagnostic tests planned: residual
+  autocorrelation beyond lag 5, RegimeScore distribution
+  comparison, realized volatility comparison, result by month,
+  rolling weekly β₃. OOS Lambda Level Comparison also planned.
+
+Lagged regime conditioning (β₃=-0.000089, p=0.677):
+- Cleanest possible test, no simultaneity of any kind. Null
+  result strengthens efficiency finding. Prior-bar regime
+  information has no carry-forward predictive value.
+- p=0.677 vs p=0.335 in primary regression does not mean
+  lagged regime is less predictive than contemporaneous — both
+  are null and the difference is sampling variation only.
+
+Midday subsample (β₃=0.000549, p=0.162):
+- Not significant, but coefficient is 2.7x larger than full
+  sample and p is 3x smaller. Directionally consistent with
+  regime detector quality hypothesis.
+- Not p-hacking: the 11:00-13:00 window was pre-specified from
+  theory (lambda warmup complete, TAR most stable, no open/close
+  structural contamination) before running the test.
+- Key point ruling out circularity as dominant explanation:
+  under pure circularity, the interaction coefficient should
+  collapse toward the unconditional TFI slope (β₁≈0.0006),
+  not away from it. The midday β₃=0.000549 is larger than
+  in-sample β₃=0.000203, moving in the wrong direction for
+  a pure circularity story. This argument should be included
+  in the paper.
+- Future research: with LOB data, the time-based proxy could
+  be replaced with a direct orthogonal condition (bid-ask
+  spread, depth, cancellation rate) to test whether stable
+  regime conditions produce genuine predictability.
+
+TFI quintile interaction (no quintile survives Bonferroni):
+- Null result confirms the primary null is not a linearity
+  artifact. Should be noted as foreshadowing in Section 4.5.
+- Monotonic pattern (Q1→Q5 increasing coefficients) is a
+  circularity signal: higher |TFI| → higher lambda → higher
+  RegimeScore → mechanically larger interaction. Does not
+  predict hump-shaped pattern from genuine informed trading
+  theory (Kyle 1985: informed traders split orders, moderate
+  TFI should concentrate signal).
+- Implication: circularity operates at the interaction level
+  within the regression itself, not just at the detector
+  construction level. Monotonic pattern adds a second layer
+  of evidence for circularity beyond the known detector-level
+  issue. Does not invalidate project — documents the trades-only
+  data limitation precisely.
+
+Regime transition dynamics (sustained p=0.512, transition p=0.018):
+- Most novel finding. TFI more predictive at first bar of
+  low-to-high regime transition than during sustained high-regime.
+- Consistent with Kyle (1985) informed trader timing.
+- Two interpretations not yet resolved: (1) genuine informed
+  front-running of regime shifts; (2) circularity through large
+  RegimeScore delta at transition mechanically inflating
+  interaction. Need delta magnitude diagnostic to distinguish.
+  Planned test: split transition bars by median delta, compare
+  β₄ in small-delta vs large-delta subsets. Under circularity,
+  large-delta β >> small-delta β. Under genuine signal, β should
+  be similar regardless of delta size.
+- Threshold robustness also planned: test 0.4 and 0.6
+  thresholds. If result only appears at 0.5, likely artifact.
+  If stable across thresholds, more robust.
+- p=0.018 marginal (significant at α=0.05, not α=0.01).
+  Small-sample concern: 4,376 transition bars is only 7.9%
+  of total sample. Roughly 2x more data (350+ trading days)
+  needed to confirm at stricter threshold.
+
+Stable regime conditions test (planned, not yet written):
+- Motivated by midday subsample result. Instead of time as
+  proxy for regime detector quality, use rolling std of signed
+  flow in 30-bar lambda window as a direct stability metric.
+  Bottom tercile = most stable lambda estimation conditions.
+- Prediction: stable-condition bars should show stronger β₃
+  or lower p-value than full sample, consistent with detector
+  quality hypothesis. Hour distribution of stable bars should
+  peak at midday if the stability criterion captures the same
+  structural advantage as the time window.
+
+**Open questions:**
+
+1. What is reg['regime_score'].autocorr(lag=1)? Required to
+   resolve contemporaneous interpretation.
+2. OOS diagnostic results: which explanation(s) are supported?
+   Specifically whether significance is episodic (concentrated
+   in specific windows) or structural.
+3. Is transition p=0.018 driven by large-delta transitions
+   (circularity) or flat across delta magnitudes (genuine signal)?
+4. Is transition finding stable across thresholds 0.4 and 0.6?
+5. Does stable regime conditions test show stronger β₃ in bottom
+   tercile of lambda window stability? And does hour distribution
+   of stable bars peak at midday?
+
+**Next step:**
+1. Write remaining diagnostic sections in formal_analysis.py:
+   regime score autocorrelation, stable regime conditions test,
+   transition delta magnitude diagnostic, transition threshold
+   robustness.
+2. Run complete formal_analysis.py pipeline and record all
+   diagnostic results.
+3. Resolve all five open questions from diagnostic output.
+4. Update phase4_findings.md, PAPER.md, CLAUDE.md, JOURNAL.md
+   with finalized interpretations.
+
+---
+
+## 2026-04-10
 
 **Session Summary:**
 - 

@@ -285,7 +285,6 @@ databento library
 - All results must be reproducible from /src code on raw data.
 
 ## Rules for Claude Code in this project
-- Help debug code I wrote — do not write code for me
 - Point out methodological errors or oversights
 - Do not generate analysis, write paper sections, or interpret
   results
