@@ -1383,6 +1383,40 @@ Stable regime conditions test (planned, not yet written):
 ## 2026-04-10
 
 **Session Summary:**
+- Wrote remaining diagnostic sections in formal_analysis.py:
+  RegimeScore autocorrelation diagnostic, signed flow extraction
+  for lambda stability metric, stable regime conditions test,
+  transition dynamics delta magnitude diagnostic, and transition
+  threshold robustness (0.4 and 0.6).
+- Foundings recorded but not interpreted yet (will do tomorrow).
+
+**Findings:**
+None
+
+**Open questions:**
+- Same five open questions from 2026-04-09 session:
+  1. RegimeScore lag-1 autocorrelation — resolves contemporaneous
+     interpretation (circularity vs genuine signal).
+  2. OOS diagnostic results — which explanation(s) supported for
+     p=0.004 OOS significance?
+  3. Transition delta magnitude — does transition β vary with
+     delta size (circularity) or stay flat (genuine signal)?
+  4. Transition threshold robustness — is p=0.018 finding stable
+     at thresholds 0.4 and 0.6?
+  5. Stable regime conditions — does bottom tercile of lambda
+     window stability produce stronger β₃, and does hour
+     distribution peak at midday?
+
+**Next step:**
+1. Analyze results and resolve all five open questions.
+2. Update phase4_findings.md with finalized interpretations.
+3. Plan on how to continue (stay in phase 4 or move to phase 5).
+
+---
+
+## 2026-04-11
+
+**Session Summary:**
 - 
 
 **Findings:**
