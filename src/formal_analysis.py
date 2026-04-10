@@ -100,6 +100,15 @@ regime_score   = compute_regime_score(
 tfi     = compute_tfi(df_clean)
 returns = compute_returns(df_clean)
 
+# ── Extract signed flow for lambda stability metric ───────────────────────────
+df_indexed_full = df_clean.set_index('ts_event_et')
+signed_flow_series = (
+    df_indexed_full.groupby(pd.Grouper(freq='1min'))
+    .apply(lambda x: float(x.loc[x['side'] == 'B', 'size'].sum())
+                   - float(x.loc[x['side'] == 'A', 'size'].sum()))
+    .rename('signed_flow')
+)
+
 # ── Build regression DataFrame ────────────────────────────────────────────────
 print("\n[3] Building regression DataFrame...")
 
@@ -138,6 +147,25 @@ n_final = len(reg)
 print(f"    Dropped (NaN/warmup/boundaries): {n_raw - n_final:,}")
 print(f"    Final regression N:              {n_final:,}")
 
+# ── RegimeScore autocorrelation diagnostic ────────────────────────────────────
+print("\n" + "=" * 60)
+print("REGIME SCORE AUTOCORRELATION DIAGNOSTIC")
+print("=" * 60)
+
+rs_autocorr_lag1 = reg['regime_score'].autocorr(lag=1)
+rs_autocorr_lag5 = reg['regime_score'].autocorr(lag=5)
+rs_autocorr_lag30 = reg['regime_score'].autocorr(lag=30)
+
+print(f"\n  RegimeScore autocorrelation:")
+print(f"    Lag 1:  {rs_autocorr_lag1:.4f}")
+print(f"    Lag 5:  {rs_autocorr_lag5:.4f}")
+print(f"    Lag 30: {rs_autocorr_lag30:.4f}")
+print(f"\n  Interpretation:")
+print(f"    Lag-1 autocorr > 0.85 → lagging by 1 bar removes little")
+print(f"    circularity; p=0.067 driven mainly by residual confounding")
+print(f"    Lag-1 autocorr < 0.70 → meaningful circularity removed;")
+print(f"    p=0.067 may reflect genuine predictive signal")
+
 # ── Summary statistics ────────────────────────────────────────────────────────
 print("\n[4] Summary statistics — regression variables:")
 print("-" * 60)
@@ -170,6 +198,99 @@ X = sm.add_constant(reg[['tfi', 'regime_score', 'tfi_x_regime',
 
 model  = sm.OLS(y, X).fit(cov_type='HAC', cov_kwds={'maxlags': 5})
 print(model.summary())
+
+# =============================================================================
+# STABLE REGIME CONDITIONS TEST
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("STABLE REGIME CONDITIONS TEST")
+print("=" * 60)
+print("  Rationale: lambda is most accurately estimated when the")
+print("  30-bar rolling window contains stable, representative")
+print("  signed flow — not dominated by a single price spike.")
+print("  Bottom tercile of rolling signed-flow std = most stable")
+print("  lambda estimation conditions.")
+
+# Align signed flow to regression index
+signed_flow_aligned = signed_flow_series.reindex(reg.index)
+
+# Rolling std of signed flow over 30-bar window (same as lambda window)
+# This measures how noisy the lambda estimation window was for each bar
+reg['lambda_window_std'] = (
+    signed_flow_aligned
+    .rolling(30, min_periods=15)
+    .std()
+    .reindex(reg.index)
+)
+
+# Bottom tercile = most stable lambda conditions
+stability_threshold = reg['lambda_window_std'].quantile(0.33)
+reg_stable = reg[reg['lambda_window_std'] <= stability_threshold].copy()
+reg_stable = reg_stable.dropna(subset=REGRESSION_COLS)
+
+print(f"\n  Stability threshold (33rd pctile of lambda window std):")
+print(f"    {stability_threshold:.2f} contracts signed flow std")
+print(f"  Stable-condition bars: {len(reg_stable):,} "
+      f"({len(reg_stable)/len(reg)*100:.1f}% of full sample)")
+print(f"  High-regime in stable sample: "
+      f"{(reg_stable['regime_score'] > 0.5).sum():,} "
+      f"({(reg_stable['regime_score'] > 0.5).mean()*100:.1f}%)")
+
+# Check time-of-day distribution of stable bars
+# If stable bars concentrate in midday, this confirms the time-based
+# intuition and shows the stability criterion captures the same thing
+stable_hour_dist = reg_stable.index.hour.value_counts().sort_index()
+print(f"\n  Hour distribution of stable bars (should peak at midday):")
+for h, n in stable_hour_dist.items():
+    pct = n / len(reg_stable) * 100
+    bar = '█' * int(pct / 1.5)
+    print(f"    {h:02d}:xx  {n:5,} ({pct:4.1f}%) {bar}")
+
+# Run primary regression on stable-condition bars only
+y_stable = reg_stable['fwd_return']
+X_stable = sm.add_constant(reg_stable[['tfi', 'regime_score',
+                                        'tfi_x_regime',
+                                        'lag_return', 'lag_tfi']])
+model_stable = sm.OLS(y_stable, X_stable).fit(
+    cov_type='HAC', cov_kwds={'maxlags': 5}
+)
+
+print(f"\n  Stable-condition primary regression | N={int(model_stable.nobs):,}")
+print(f"    β₃ (tfi_x_regime): {model_stable.params['tfi_x_regime']:.6f}")
+print(f"    z-stat:            {model_stable.tvalues['tfi_x_regime']:.3f}")
+print(f"    p-value:           {model_stable.pvalues['tfi_x_regime']:.4f}")
+print(f"    β₁ (tfi):          {model_stable.params['tfi']:.6f}")
+print(f"    R²:                {model_stable.rsquared:.6f}")
+
+print(f"\n  Comparison (full sample β₃ = {model.params['tfi_x_regime']:.6f}, "
+      f"p = {model.pvalues['tfi_x_regime']:.4f}):")
+if model_stable.pvalues['tfi_x_regime'] < model.pvalues['tfi_x_regime']:
+    print(f"  → Stable conditions produce lower p-value: CONSISTENT with")
+    print(f"    hypothesis that regime detector is more accurate when lambda")
+    print(f"    estimation is stable.")
+else:
+    print(f"  → Stable conditions do NOT produce lower p-value: NOT consistent")
+    print(f"    with hypothesis.")
+
+# Also run on top tercile (most unstable) for comparison
+stability_threshold_67 = reg['lambda_window_std'].quantile(0.67)
+reg_unstable = reg[reg['lambda_window_std'] > stability_threshold_67].copy()
+reg_unstable = reg_unstable.dropna(subset=REGRESSION_COLS)
+
+y_unstable = reg_unstable['fwd_return']
+X_unstable = sm.add_constant(reg_unstable[['tfi', 'regime_score',
+                                            'tfi_x_regime',
+                                            'lag_return', 'lag_tfi']])
+model_unstable = sm.OLS(y_unstable, X_unstable).fit(
+    cov_type='HAC', cov_kwds={'maxlags': 5}
+)
+
+print(f"\n  Unstable-condition (top tercile) | N={int(model_unstable.nobs):,}")
+print(f"    β₃ (tfi_x_regime): {model_unstable.params['tfi_x_regime']:.6f}")
+print(f"    p-value:           {model_unstable.pvalues['tfi_x_regime']:.4f}")
+print(f"\n  If stable β₃ > unstable β₃ and stable p < unstable p,")
+print(f"  the gradient supports the regime detector quality hypothesis.")
 
 # =============================================================================
 # 3. CONTEMPORANEOUS SECONDARY REGRESSION
@@ -733,6 +854,152 @@ print(f"    Sustained β₃ (tfi_x_regime):      "
 print(f"    Transition β (tfi_x_transition):  "
       f"{model_transition.params['tfi_x_transition']:.6f}  "
       f"p={model_transition.pvalues['tfi_x_transition']:.4f}")
+
+# =============================================================================
+# TRANSITION DYNAMICS — DELTA MAGNITUDE DIAGNOSTIC
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("TRANSITION DYNAMICS — DELTA MAGNITUDE DIAGNOSTIC")
+print("=" * 60)
+print("  Tests whether transition β₄ varies with the size of the")
+print("  RegimeScore delta at transition.")
+print("  Under CIRCULARITY: larger delta → larger mechanical inflation")
+print("    → stronger transition coefficient.")
+print("  Under GENUINE SIGNAL: effect should be consistent regardless")
+print("    of delta magnitude — informed traders do not front-run")
+print("    only large-delta transitions.")
+
+# Compute delta at each transition bar
+reg['regime_score_prev'] = reg['regime_score'].shift(1)
+reg['transition_delta'] = np.where(
+    reg['transition_to_high'] == 1,
+    reg['regime_score'] - reg['regime_score_prev'],
+    np.nan
+)
+
+transition_bars = reg[reg['transition_to_high'] == 1].copy()
+transition_bars = transition_bars.dropna(subset=['transition_delta'])
+
+if len(transition_bars) < 50:
+    print(f"  Insufficient transition bars ({len(transition_bars)}) for")
+    print(f"  delta analysis. Skipping.")
+else:
+    print(f"\n  Total transition bars: {len(transition_bars):,}")
+    print(f"  Delta distribution:")
+    print(f"    Mean:   {transition_bars['transition_delta'].mean():.4f}")
+    print(f"    Median: {transition_bars['transition_delta'].median():.4f}")
+    print(f"    Std:    {transition_bars['transition_delta'].std():.4f}")
+    print(f"    Min:    {transition_bars['transition_delta'].min():.4f}")
+    print(f"    Max:    {transition_bars['transition_delta'].max():.4f}")
+
+    # Split transitions into small delta (bottom half) and
+    # large delta (top half) using median split
+    delta_median = transition_bars['transition_delta'].median()
+
+    for delta_label, delta_condition in [
+        ('Small delta (below median)', transition_bars['transition_delta'] <= delta_median),
+        ('Large delta (above median)', transition_bars['transition_delta'] > delta_median),
+    ]:
+        small_idx = transition_bars[delta_condition].index
+        reg_delta = reg.copy()
+        reg_delta['transition_to_high_split'] = 0
+        reg_delta.loc[reg_delta.index.isin(small_idx),
+                      'transition_to_high_split'] = 1
+        reg_delta['tfi_x_transition_split'] = (
+            reg_delta['tfi'] * reg_delta['transition_to_high_split']
+        )
+
+        n_trans = int(reg_delta['transition_to_high_split'].sum())
+        if n_trans < 30:
+            print(f"\n  {delta_label}: only {n_trans} bars, skipping.")
+            continue
+
+        y_d = reg_delta['fwd_return']
+        X_d = sm.add_constant(reg_delta[['tfi', 'regime_score',
+                                          'tfi_x_regime',
+                                          'tfi_x_transition_split',
+                                          'lag_return', 'lag_tfi']])
+        X_d = X_d.dropna()
+        y_d = y_d.reindex(X_d.index)
+
+        model_d = sm.OLS(y_d, X_d).fit(
+            cov_type='HAC', cov_kwds={'maxlags': 5}
+        )
+        b_trans = model_d.params['tfi_x_transition_split']
+        p_trans = model_d.pvalues['tfi_x_transition_split']
+        print(f"\n  {delta_label} | N transitions={n_trans}")
+        print(f"    Transition β: {b_trans:.6f}  p={p_trans:.4f}")
+
+    print(f"\n  Interpretation:")
+    print(f"    If large-delta β >> small-delta β: circularity likely")
+    print(f"    If large-delta β ≈ small-delta β: genuine signal more likely")
+
+# =============================================================================
+# TRANSITION THRESHOLD ROBUSTNESS — 0.4 and 0.6
+# =============================================================================
+
+print("\n" + "=" * 60)
+print("TRANSITION THRESHOLD ROBUSTNESS — 0.4 and 0.6")
+print("=" * 60)
+print("  Tests whether transition dynamics finding (p=0.018 at")
+print("  threshold=0.5) is stable across alternative thresholds.")
+print("  If result concentrates only at 0.5: likely threshold artifact.")
+print("  If result stable across 0.4/0.5/0.6: more robust finding.")
+
+for threshold in [0.4, 0.6]:
+    exclusion_mask_reg_thresh = (
+        exclusion_mask.reindex(reg.index).fillna(False).astype(bool)
+    )
+    prior_excluded_thresh = (
+        exclusion_mask_reg_thresh.shift(1).fillna(False).astype(bool)
+    )
+
+    high_thresh = (reg['regime_score'] > threshold).astype(int)
+    reg[f'transition_to_high_{threshold}'] = (
+        (high_thresh == 1) &
+        (high_thresh.shift(1) == 0) &
+        (~prior_excluded_thresh)
+    ).astype(float)
+    reg[f'tfi_x_transition_{threshold}'] = (
+        reg['tfi'] * reg[f'transition_to_high_{threshold}']
+    )
+
+    n_trans = int(reg[f'transition_to_high_{threshold}'].sum())
+
+    y_tr = reg['fwd_return']
+    X_tr = sm.add_constant(
+        reg[['tfi', 'regime_score', 'tfi_x_regime',
+              f'tfi_x_transition_{threshold}',
+              'lag_return', 'lag_tfi']]
+    )
+    model_tr = sm.OLS(y_tr, X_tr).fit(
+        cov_type='HAC', cov_kwds={'maxlags': 5}
+    )
+
+    b_sus  = model_tr.params['tfi_x_regime']
+    p_sus  = model_tr.pvalues['tfi_x_regime']
+    b_trans = model_tr.params[f'tfi_x_transition_{threshold}']
+    p_trans = model_tr.pvalues[f'tfi_x_transition_{threshold}']
+
+    print(f"\n  Threshold = {threshold} | Transition bars: {n_trans:,}")
+    print(f"    Sustained β₃ (tfi_x_regime):          "
+          f"{b_sus:.6f}  p={p_sus:.4f}")
+    print(f"    Transition β (tfi_x_transition):       "
+          f"{b_trans:.6f}  p={p_trans:.4f}")
+
+print(f"  Reference: threshold=0.5 | "
+      f"Transition bars: {n_transitions:,}")
+print(f"    Sustained β₃: "
+      f"{model_transition.params['tfi_x_regime']:.6f}  "
+      f"p={model_transition.pvalues['tfi_x_regime']:.4f}")
+print(f"    Transition β: "
+      f"{model_transition.params['tfi_x_transition']:.6f}  "
+      f"p={model_transition.pvalues['tfi_x_transition']:.4f}")
+print(f"\n  Interpretation:")
+print(f"    Consistent transition significance across thresholds")
+print(f"    → finding is robust, not a 0.5-threshold artifact.")
+print(f"    Significance only at 0.5 → likely threshold-specific.")
 
 # =============================================================================
 # 11. TRANSACTION COST ANALYSIS
