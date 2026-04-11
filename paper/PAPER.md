@@ -22,7 +22,7 @@ symbol containing a hyphen.
 ### 3.2 Sample Period and Cleaning
 
 The in-sample period covers 2025-05-01 through 2025-12-30. A
-held-out out-of-sample period spanning 2026-01-01 through 2026-03-09
+held-out out-of-sample period spanning 2026-01-02 through 2026-03-06
 is reserved exclusively for final validation and is not used in any
 model estimation or specification search.
 
@@ -126,314 +126,634 @@ where order flow is more likely to reflect private information.
 
 ### 4.2 Informed Trading Regime Score
 
-The informed trading regime score, RegimeScore_t ∈ [0, 1], is
-a continuous measure of the probability that bar t occurs during
-a period of elevated information asymmetry. It is constructed from
-three components, each motivated by the adverse selection framework
-of Glosten and Milgrom (1985) and Kyle (1985).
+The informed trading regime score, RegimeScore_t ∈ [0, 1], is a
+continuous measure of the probability that bar t occurs during a
+period of elevated information asymmetry. It is constructed from two
+components, each motivated by the adverse selection framework of
+Glosten and Milgrom (1985) and Kyle (1985).
 
 **Kyle's lambda** measures price impact per unit of signed order
 flow, estimated from a rolling OLS regression of price changes on
-signed order flow over a 30-minute window updated each minute.
-High lambda indicates market makers are updating quotes aggressively
+signed order flow over a 30-bar window updated each minute. High
+lambda indicates market makers are updating quotes aggressively
 in response to order flow — consistent with their inference that
 the flow may be informed. However, high lambda alone is
 insufficient: elevated price impact can equally reflect thin
 markets, market stress, or mechanical order flow rather than
-informed trading. Two additional components and exclusion windows
-rule out these alternative explanations.
-
-**Roll (1984) spread estimate** measures bid-ask tightness from
-the serial covariance of consecutive trade price changes. When a
-bid-ask spread exists, prices alternate between bid and ask,
-producing negative serial covariance whose magnitude is directly
-related to spread size. Low Roll spread confirms normal market
-tightness, ruling out structural illiquidity as the source of
-elevated lambda. Roll spread values at 1-minute resolution are
-inflated relative to the true bid-ask spread due to large intraday
-price moves dominating the serial covariance; however, Roll enters
-the regime score only through its rolling z-score, so the absolute
-level is irrelevant — only relative tightness across bars matters.
+genuine informed trading.
 
 **Trade arrival rate** measures trades per minute over a 5-minute
 rolling window, proxying market depth and active liquidity
-provision. High arrival rate confirms many market makers are
-actively quoting, ruling out thin depth as the source of elevated
-lambda. A shorter window than lambda and Roll is used to reflect
-the faster response of trading activity to changing market
-conditions.
+provision. High arrival rate confirms many market participants are
+actively transacting, ruling out thin depth or structural illiquidity
+as the source of elevated lambda. A shorter window than lambda is
+used to reflect the faster response of trading activity to changing
+market conditions.
 
-The three components are combined into a continuous score:
+The two components are combined into a continuous score through
+three steps. First, each component is standardized using a rolling
+z-score over a 30-bar window:
 
-1. Standardize each component using rolling z-scores over a
-   30-minute window:
-   z_lambda_t = (lambda_t − μ_lambda) / σ_lambda
-   z_roll_t   = (Roll_t − μ_roll) / σ_roll
-   z_arrival_t = (arrival_t − μ_arrival) / σ_arrival
+z_lambda_t  = (lambda_t  − μ_lambda)  / σ_lambda
+z_arrival_t = (arrival_t − μ_arrival) / σ_arrival
 
-2. Combine with theoretically motivated signs:
-   RawScore_t = z_lambda_t − z_roll_t + z_arrival_t
+Second, the components are combined with theoretically motivated
+signs:
 
-3. Map to [0, 1] via logistic transformation:
-   RegimeScore_t = 1 / (1 + exp(−RawScore_t))
+RawScore_t = z_lambda_t + z_arrival_t
+
+Third, the raw score is mapped to [0, 1] via logistic transformation:
+
+RegimeScore_t = 1 / (1 + exp(−RawScore_t))
 
 Rolling standardization ensures the score is always relative to
 recent market conditions rather than the full sample distribution,
-allowing the score to adapt to the two distinct activity regimes
-identified in Section 3.3. All rolling estimates use only past
-data — no lookahead bias is introduced.
+allowing it to adapt to the two distinct activity regimes identified
+in Section 3.3. All rolling estimates use only past data — no
+lookahead bias is introduced.
 
-Four sources of residual misclassification or signal attenuation
-are acknowledged. Market maker inventory pressure and mechanical
-order clustering can produce elevated lambda in liquid markets
-without informed trading. The Roll spread estimator is unreliable
-in strongly one-sided markets as the bid-ask bounce disappears —
-precisely the high-lambda informed trading conditions of interest;
-in these conditions Roll contributes approximately zero to the
-composite score rather than a negative value, reducing RegimeScore
-magnitude without reversing the signal direction, with lambda and
-arrival rate remaining the primary drivers. Kyle's lambda is
-undefined when signed order flow has zero variance across the
-estimation window, excluding ~31% of core RTH bars from regime 
-detection; these bars are self-selecting as uninformative, as the 
-absence of directional flow is itself evidence against an informed 
-trading regime. Finally, the rolling window requires a warmup period 
-at the start of each session, though this is empirically subsumed by 
-the zero-variance exclusion.
+**Design choice — Roll spread exclusion:** An earlier version of the
+detector included the Roll (1984) spread estimator as a third
+component. Roll was subsequently removed for two reasons. First,
+the Roll estimator is non-orthogonal to lambda: both components
+spike simultaneously at the same directional price episodes, making
+Roll redundant rather than independently informative. Second, Roll
+fails precisely in one-sided markets — the high-lambda informed
+trading conditions of greatest theoretical interest — because the
+bid-ask bounce required for the serial covariance estimator
+disappears when prices move consistently in one direction. The
+two-component detector avoids both problems while preserving the
+core economic signal.
+
+Two sources of residual misclassification are acknowledged. Market
+maker inventory pressure and mechanical order clustering can produce
+elevated lambda in liquid markets without informed trading. Kyle's
+lambda is also undefined when signed order flow has zero variance
+across the estimation window; these bars are excluded from the
+regression sample and are self-selecting as uninformative, as the
+absence of directional flow is itself evidence against an informed
+trading regime.
 
 ### 4.3 Exclusion Windows
 
-Three categories of known uninformed directional flow are excluded
-by setting RegimeScore_t = 0 regardless of indicator values:
+Scheduled macro announcements are excluded by setting
+RegimeScore_t = 0 for the 30 minutes following each FOMC decision,
+CPI release, and NFP release. These events drive directional order
+flow from participants responding to the same public information
+signal rather than private information, and their post-announcement
+windows represent the period of greatest mechanical lambda inflation.
+Pre-announcement windows are retained: informed traders with early
+signal access may be active in the period before announcements,
+and excluding these bars would discard potentially genuine informed
+trading episodes.
 
-The final 10 minutes of each session (15:50–16:00 ET) are dominated
-by MOC order flow — mechanical, publicly announced execution that
-generates high volume without price impact, as documented in Section
-3.4. The 30 minutes surrounding scheduled macro announcements
-(FOMC, CPI, NFP) are excluded because these public information
-events drive directional order flow from participants responding to
-the same public signal rather than private information. Contract
-roll dates and the three preceding trading days are excluded to
-remove the structural illiquidity and mechanical volume migration
-that accompany front-month contract expiration.
+The final 10 minutes of each session (15:50–16:00 ET) are excluded
+due to domination by MOC order flow — mechanical, publicly announced
+execution that generates high volume without adverse selection, as
+documented in Section 3.4. Contract roll dates and the three
+preceding trading days are excluded to remove the structural
+illiquidity and mechanical volume migration that accompany
+front-month contract expiration.
 
 ### 4.4 Regime Detector Validation
 
 Prior to testing TFI predictability, the regime detector is
-validated against three independent criteria. First, realized
+validated against two independent criteria. First, realized
 volatility should be higher in high-RegimeScore bars — informed
-trading generates volatility through aggressive quote updating
-even though volatility is not a regime condition. Second,
-RegimeScore should be elevated in the 30 minutes before scheduled
-macro announcements, when informed traders with early signal access
-are most active. Third, the contemporaneous TFI-return slope should
-be larger in high-RegimeScore bars — informed order flow should
-move prices more per unit of TFI within the same bar.
+trading generates volatility through aggressive quote updating even
+though volatility is not a regime condition. Second, RegimeScore
+should be elevated in the period before scheduled macro
+announcements, when informed traders with early signal access are
+most active.
 
-Exploratory results confirm the third criterion most clearly.
-The contemporaneous TFI slope is 1.80e-03 in high-regime bars
-versus 9.66e-04 in low-regime bars — a 1.87x amplification,
-consistent with theory. Realized volatility validation requires
-care: exclusion windows mechanically set RegimeScore = 0 during
-the highest-volatility announcement and roll events, removing
-these episodes from the high-regime group. A decile analysis
-confirms the detector is directionally correct — the highest
-genuine RegimeScore decile has elevated forward return volatility
-(std = 0.001172) relative to middle deciles (std ≈ 0.000900-0.000978)
-— but the amplification is modest because the most extreme
-high-lambda episodes are excluded by design.
+A decile analysis confirms the detector is directionally correct —
+the highest genuine RegimeScore decile has elevated forward return
+volatility (std = 0.001172) relative to middle deciles
+(std ≈ 0.000900-0.000978). The amplification is modest because the
+most extreme high-lambda episodes are excluded by the announcement
+and MOC windows by design. The contemporaneous TFI-return slope is
+1.80×10⁻³ in high-regime bars versus 9.66×10⁻⁴ in low-regime bars,
+consistent with informed order flow having greater within-bar price
+impact in high-regime conditions.
 
-The detector operates most reliably during the stable midday 
-portion of the trading session, where lambda is estimable, Roll 
-is not in persistent one-sided failure, and structural events 
-are absent.
+The detector operates most reliably during the stable midday and
+early afternoon portion of the trading session, where lambda is
+estimable, trade arrival rate reflects genuine liquidity conditions,
+and structural events are absent. This intraday pattern is confirmed
+empirically by the stable regime conditions analysis in Section 4.6.
 
 ### 4.5 Empirical Tests
 
-**Primary hypothesis test — forward return predictability (T+1):**
+**Primary specification:**
 
-The primary test asks whether regime-conditioned TFI predicts
-forward returns at the one-bar horizon — a genuinely predictive
-question where the outcome is unknown when the signal is observed:
+All regressions use the following primary specification unless
+otherwise noted:
 
-Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t +
-               β₃·(TFI_t × RegimeScore_t) +
-               β₄·Return_t + β₅·TFI_{t-1} + ε_t
+Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t
+             + β₃·(TFI_t × RegimeScore_t)
+             + β₄·Return_t + β₅·TFI_{t-1} + ε_t
 
 β₁ captures the unconditional TFI effect when RegimeScore = 0.
 β₂ captures any return level difference across regime states
 independent of TFI. β₃ is the primary coefficient of interest —
-a significant β₃ would indicate that the regime detector identifies
-periods where TFI's predictive power for future returns is genuinely
-amplified. β₄ and β₅ control for return autocorrelation and TFI
-persistence. All regressions use Newey-West standard errors with
-maxlags=5.
+a significant positive β₃ would indicate that the regime detector
+identifies periods where TFI's predictive power for next-bar returns
+is genuinely amplified. β₄ and β₅ control for return autocorrelation
+and TFI persistence. All regressions use Newey-West HAC standard
+errors with maxlags=5.
 
-Formal results: β₃ = 0.0001, z = 0.568, p = 0.570. The null
-hypothesis is not rejected. The regime does not significantly
-amplify TFI's predictive power for the next bar's return. β₁ =
-0.0007, z = 5.121, p < 0.001 — unconditional TFI significantly
-predicts forward returns, consistent with Cont, Kukanov, and
-Stoikov (2014), but this effect does not strengthen in high-regime
-conditions. The null result is consistent across both activity
-sub-periods (May-Sep: β₃ = 0.0001, p = 0.704; Oct-Dec: β₃ =
-0.0001, p = 0.639) and at longer horizons (T+5: β₃ = -0.000027,
-p = 0.902; T+15: β₃ = -0.000108, p = 0.659). Information in ES
-futures appears to be incorporated within one 1-minute bar in
-high-regime conditions, leaving no residual regime-conditioned
-predictability at any horizon tested.
+The regression sample contains N = 55,634 bars after dropping
+NaN rows arising from rolling warmup, day boundary nulling, and
+the forward return edge. High-regime bars (RegimeScore > 0.5)
+account for 43.1% of the regression sample.
 
-**Secondary characterization — contemporaneous price impact (T+0):**
+**Circularity and estimation bias:** The regime interaction
+specification inherits two layers of circularity from the use of
+trades-only data. At the detector construction level, lambda is
+derived from rolling OLS of price changes on signed order flow —
+the same aggressor-side volume that underlies TFI. At the regression
+interaction level, the quintile interaction analysis (Section 4.6)
+reveals that high TFI bars mechanically have elevated RegimeScore
+because high signed flow simultaneously elevates lambda, inflating
+the interaction term TFI × RegimeScore. This second-layer bias acts
+upward on β₃ — it makes finding a positive coefficient easier, not
+harder. As a consequence, the null result in the primary regression
+holds even under estimation conditions favorable to the alternative
+hypothesis, strengthening rather than weakening the efficiency
+conclusion.
 
-A separate analysis characterizes the regime-conditioned
-relationship between TFI and same-bar returns, directly paralleling
-the Kyle (1985) lambda framework. This is not a predictive test —
-it measures how the within-bar price impact of order flow varies
-with the regime indicator:
+---
 
-Return_t = α + β₁·TFI_t + β₂·RegimeScore_t +
-           β₃·(TFI_t × RegimeScore_t) +
-           β₅·TFI_{t-1} + ε_t
+## 4.5 Primary Results
 
-This specification omits lagged return from the right-hand side
-because Return_t is the dependent variable. The interaction β₃
-here measures the amplification of contemporaneous price impact
-per unit of RegimeScore — a direct empirical analog of the Kyle
-(1985) lambda relationship.
+### 4.5.1 Forward Return Predictability — T+1
 
-Formal results: β₃ = 0.0015, z = 7.214, p < 0.001. The regime
-significantly amplifies contemporaneous price impact. At RegimeScore
-= 0, the TFI-return slope is 0.0007; at the mean high-regime score
-of 0.788, the slope is 0.0007 + 0.0015 × 0.788 = 0.00188 — a
-2.7x amplification. This confirms the regime detector correctly
-identifies periods of elevated order flow informativeness as
-defined by the Kyle (1985) framework. It should be noted that this
-finding is partially circular: Kyle's lambda is built into
-RegimeScore as a component, and lambda is itself a contemporaneous
-price impact measure. The contemporaneous result therefore serves
-primarily as a validation that the regime detector is measuring
-what it claims to measure, rather than as an independent empirical
-contribution.
+The primary test asks whether regime-conditioned TFI predicts
+returns at the one-bar horizon — a genuinely predictive question
+where the outcome (Return_{t+1}) is unknown when the signal
+(TFI_t, RegimeScore_t) is observed. RegimeScore_t is contemporaneous
+with TFI_t but fully predetermined relative to Return_{t+1}: the
+next bar's return is not in lambda's estimation window and is not
+known when the signal is recorded. This regression is non-confounded.
 
-The economic significance of the contemporaneous finding is most
-relevant for market makers who observe accumulating order flow in
-real-time within the bar, as discussed in Section 5.
+**Table 2: Primary Regression — Return_{t+1}**
 
-### 4.6 Additional Tests
+| Variable | Coefficient | z-stat | p-value |
+|---|---|---|---|
+| const | −4.42×10⁻⁶ | −0.486 | 0.627 |
+| tfi (β₁) | 0.000628 | 4.695 | <0.001 *** |
+| regime_score (β₂) | 8.42×10⁻⁶ | 0.562 | 0.574 |
+| tfi_x_regime (β₃) | 0.000203 | 0.964 | 0.335 |
+| lag_return (β₄) | −0.488 | −53.862 | <0.001 *** |
+| lag_tfi (β₅) | −4.99×10⁻⁵ | −0.907 | 0.365 |
 
-**Horizon analysis:** The primary specification is repeated at
-5-minute and 15-minute cumulative forward horizons. Results confirm
-no regime interaction at any horizon: T+5 β₃ = -0.000027 (p = 0.902),
-T+15 β₃ = -0.000108 (p = 0.659). The unconditional TFI effect (β₁)
-remains significant at all horizons (~0.0007-0.0008, p < 0.001),
-but does not vary with the regime. Information incorporation in
-ES futures is complete within one 1-minute bar in high-regime
-conditions.
+R² = 0.236, N = 55,634. HAC standard errors (Newey-West, maxlags=5).
 
-**Effect size decomposition:** The distribution of RegimeScore
-across the full sample and each sub-period is reported, including
-the fraction of bars with RegimeScore > 0.5 and RegimeScore > 0.75.
-This contextualizes the economic significance of the finding —
-a highly predictive signal active in 3% of bars has different
-practical implications than one active in 30% of bars.
+β₃ = 0.000203, p = 0.335. The null hypothesis — that the regime
+does not amplify TFI's forward predictive power — is not rejected.
+ES futures prices incorporate regime-conditioned order flow
+information within one 1-minute bar. The unconditional TFI effect
+(β₁ = 0.000628, p < 0.001) replicates the Cont, Kukanov, and
+Stoikov (2014) finding that order flow imbalance predicts short-term
+returns, but this effect does not concentrate in high-regime
+conditions. The dominant source of return predictability in the
+regression is the mean reversion control lag_return (β₄ = −0.488,
+p < 0.001), capturing bid-ask bounce; R² = 0.236 is driven almost
+entirely by this term.
 
-**Subsample stability:** The primary test is repeated on the full
-in-sample period (2025-05-01 to 2025-12-30) and the two activity
-sub-periods identified in Section 3.3 (2025-05-01 to 2025-09-30
-and 2025-10-01 to 2025-12-30) independently. Consistency across
-sub-periods indicates a structural property of ES futures rather
-than a sample-specific artifact.
+The quintile interaction analysis in Section 4.6 confirms this null
+result is not an artifact of the linearity assumption in the
+interaction specification.
 
-**Transaction cost analysis:** The predicted return per bar at
-high RegimeScore levels is compared against the ES futures
-round-trip transaction cost of one tick (0.25 index points,
-~4 basis points of notional). The annualized Sharpe ratio of a
-strategy trading in the direction of TFI when RegimeScore > 0.5,
-net of transaction costs, is reported.
+### 4.5.2 Contemporaneous Characterization — T+0
 
-**Out-of-sample validation:** The in-sample estimated model
-(coefficients fixed) is applied to the held-out period
-2026-01-01 through 2026-03-09. Graceful degradation — weaker
-but same sign and direction — is the expected outcome.
+A separate analysis characterizes the regime-conditioned relationship
+between TFI and same-bar returns. Because Return_t and RegimeScore_t
+share bar t's time window, simultaneous estimation would be
+confounded at the regime level; RegimeScore is therefore lagged by
+one bar (RegimeScore_{t-1}) to remove regime-level simultaneity:
 
-### 4.7 Robustness
+Return_t = α + β₁·TFI_t + β₂·RegimeScore_{t-1}
+         + β₃·(TFI_t × RegimeScore_{t-1})
+         + β₅·TFI_{t-1} + ε_t
 
-The following robustness checks are pre-specified:
+A residual confounding channel remains: TFI_t and Return_t are both
+constructed from bar t's trades, making their relationship partially
+mechanical and irreducible with trades-only single-instrument data.
+This regression is therefore presented as a specification sensitivity
+result rather than a causal finding.
 
-*Regime operationalization:* A binary regime dummy (1 if lambda
-exceeds its 75th percentile, Roll falls below its 25th percentile,
-and arrival rate exceeds its 75th percentile, simultaneously) is
-tested as an alternative to the continuous RegimeScore. This tests
-whether results are robust to the specific functional form of the
-regime indicator — confirming that findings reflect genuine regime
-differences rather than artifacts of the logistic transformation
-or z-score standardization. Thresholds are additionally tested at
-70th/30th and 80th/20th percentiles.
+**Table 3: Contemporaneous Regression — Return_t (lagged RegimeScore)**
 
-*Regime indicator:* RegimeScore is replaced with daily VPIN
-(Easley, Lopez de Prado, and O'Hara, 2012) to test whether results
-hold under a theoretically distinct regime indicator with different
-construction assumptions and different failure modes — confirming
-that findings are not specific to the lambda-based regime
-detector.
+| Variable | Coefficient | z-stat | p-value |
+|---|---|---|---|
+| const | −8.26×10⁻⁶ | −1.001 | 0.317 |
+| tfi (β₁) | 0.001205 | 8.045 | <0.001 *** |
+| regime_score_lag (β₂) | 1.77×10⁻⁵ | 1.288 | 0.198 |
+| tfi_x_regime_lag (β₃) | 0.000425 | 1.830 | 0.067 |
+| lag_tfi (β₅) | −0.000128 | −1.757 | 0.079 |
 
-*Rolling window lengths:* Lambda and Roll windows tested at 15
-and 60 minutes. Arrival rate window tested at 2 and 10 minutes.
-This tests whether results are sensitive to the specific time
-horizon over which regime components are estimated.
+R² = 0.008, N = 55,634.
 
-*Return measurement:* Forward return tested with and without
-skipping one bar. This tests whether results are contaminated
-by bid-ask bounce in the return series — a microstructure
-artifact that could create spurious predictability at the
-1-minute horizon.
+β₃ = 0.000425, p = 0.067. The interaction is not significant at
+conventional thresholds. The lag-1 autocorrelation of RegimeScore
+is 0.8427, meaning lagging by one bar removes only approximately
+16% of the regime-level circularity — RegimeScore_{t-1} closely
+approximates RegimeScore_t in most consecutive bars, leaving
+substantial residual confounding. The p = 0.067 result is therefore
+best interpreted as predominantly driven by this residual confounding,
+with a non-trivial but unquantifiable secondary contribution from
+genuine predictive signal. These two explanations cannot be cleanly
+separated with trades-only data.
+
+The initial version of this regression, using a three-component
+detector including the Roll spread and a contemporaneous rather than
+lagged RegimeScore, produced β₃ = 0.0015, z = 7.214, p < 0.001.
+The collapse to β₃ = 0.000425, p = 0.067 under the cleaner
+two-component, lagged-regime specification is itself the central
+finding of this characterization: the apparent contemporaneous
+amplification was substantially circularity-driven. No empirically
+grounded market maker calibration application can be derived from
+this result.
+
+---
+
+## 4.6 Additional Tests
+
+### 4.6.1 Horizon Analysis
+
+The primary specification is repeated at cumulative 5-bar and
+15-bar forward horizons. Cumulative log returns are computed within
+each trading day only — cross-day windows are nulled to avoid
+overnight return contamination.
+
+| Horizon | β₃ | z-stat | p-value | N |
+|---|---|---|---|---|
+| T+5 | 0.000012 | 0.050 | 0.960 | 54,789 |
+| T+15 | −0.000098 | −0.373 | 0.709 | 53,099 |
+
+No regime interaction emerges at any horizon. The unconditional TFI
+effect (β₁ ≈ 0.00071–0.00078, p < 0.001) persists at both horizons
+but does not vary with regime. Information incorporation in ES
+futures is complete within one 1-minute bar in high-regime
+conditions, leaving no residual regime-conditioned predictability
+at 5 or 15 bar horizons.
+
+### 4.6.2 Subsample Stability
+
+The primary regression is estimated separately on two activity
+sub-periods identified in Section 3.3.
+
+| Subsample | N | β₃ | p-value |
+|---|---|---|---|
+| Full sample (May–Dec 2025) | 55,634 | 0.000203 | 0.335 |
+| May–Sep 2025 | 35,001 | 0.000177 | 0.524 |
+| Oct–Dec 2025 | 20,633 | 0.000251 | 0.399 |
+
+The null result is stable across both sub-periods. The directional
+pattern — modestly higher β₃ in the more volatile Oct–Dec period —
+is consistent with the regime detector having slightly more genuine
+informed trading episodes to identify in elevated-volatility
+environments, but the difference between two non-significant
+p-values carries no inferential weight. The primary finding of no
+regime-conditioned forward predictability is a structural property
+of the sample, not a sub-period artifact.
+
+### 4.6.3 Out-of-Sample Validation
+
+The in-sample specification is applied without modification to the
+held-out 2026 period (2026-01-02 through 2026-03-06, N = 14,774,
+46 trading days). No parameters are refit.
+
+The full-period OOS result is β₃ = 0.000239, z = 2.908, p = 0.004.
+This is significant at α = 0.01 and is in the opposite direction of
+what the in-sample null result would predict. Seven diagnostic tests
+were conducted to determine whether this significance is structural
+or episodic.
+
+HAC adequacy is confirmed: residual autocorrelation at lags 6–10
+ranges from +0.001 to +0.020, ruling out standard error inflation
+from insufficient lag truncation. The OOS RegimeScore distribution
+is essentially identical to in-sample (mean 0.4618 vs 0.4357,
+OOS/IS ratio 1.06x), ruling out structural regime elevation.
+Realized volatility in the OOS period is lower than in-sample
+(mean |return| 0.000224 vs 0.000533, ratio 0.42x), confirming
+the OOS period was not more volatile — this rules out volatility-
+driven mechanical lambda inflation and in fact makes significance
+harder to achieve, not easier. The OOS TFI distribution is nearly
+identical to in-sample (1.3% vs 1.0% extreme bars), ruling out
+extreme order flow as a mechanical driver. A permutation test
+(N = 1,000 shuffles of OOS forward returns) places the actual OOS
+β₃ in the top 0.5% of the null distribution, confirming the result
+is not random noise.
+
+The source of the aggregate OOS significance is identified by
+monthly breakdown and rolling window analysis. January 2026 and
+February 2026 are individually null (β₃ = 0.000060, p = 0.412;
+β₃ = 0.000169, p = 0.209 respectively). A rolling 10-trading-day
+window across the 46-day OOS period shows β₃ near zero throughout
+January and early-to-mid February, before rising sharply and
+producing seven consecutive significant windows from February 26
+through March 6, 2026 (β₃ ranging from 0.000356 to 0.000531).
+Estimating the primary regression separately on the early OOS
+period (January through February 22, N = 11,484) and late OOS
+period (February 23 through March 6, N = 3,290) yields:
+
+| Period | β₃ | p-value | Return std (bps) | R² |
+|---|---|---|---|---|
+| Early OOS (Jan–Feb 22) | 0.000046 | 0.515 | 3.041 | 0.002 |
+| Late OOS (Feb 23–Mar 6) | 0.000531 | 0.012 | 5.792 | 0.112 |
+
+The late OOS period had approximately 2x the realized volatility of
+the early period and a substantially stronger lag_return
+mean-reversion coefficient (−0.358 vs −0.053), indicating more
+normal return dynamics consistent with a period of elevated genuine
+price impact. Whether this reflects a specific macro environment
+in late February and early March 2026 or a more general condition
+under which the regime detector produces genuine signal cannot be
+determined from two weeks of data. Lambda window stability —
+measured by the rolling standard deviation of signed order flow
+in the 30-bar estimation window — does not differ materially
+between the late and early OOS periods (mean std 287.60 vs 279.37
+contracts, ratio 1.03x), ruling out the possibility that more
+stable estimation conditions explain the late OOS significance.
+
+The OOS result is presented as an episodic finding. The aggregate
+significance (p = 0.004) is driven by a specific two-week episode
+in late February through early March 2026, during which realized
+volatility was elevated relative to the preceding period. January
+and February individually are null. The permutation test confirms
+the episode is not random noise, but no orthogonal conditioning
+variable explains or predicts it. The in-sample efficiency finding
+is not overturned.
+
+### 4.6.4 TFI Quintile Interaction
+
+The continuous regime interaction term is replaced with four quintile
+dummy interactions, allowing the regime amplification to vary freely
+across the TFI distribution. Quintile 3 (moderate TFI) is the
+omitted reference category. A Bonferroni correction is applied
+across the five simultaneous tests (α = 0.01 per test, family-wise
+α = 0.05).
+
+| Quintile | Coefficient | z-stat | p-value | Bonferroni |
+|---|---|---|---|---|
+| Q1 (most negative TFI) | −0.000013 | −0.382 | 0.702 | — |
+| Q2 | −0.000025 | −1.000 | 0.317 | — |
+| Q4 | 0.000047 | 1.811 | 0.070 | — |
+| Q5 (most positive TFI) | 0.000071 | 1.984 | 0.047 | — |
+
+No quintile interaction survives Bonferroni correction (threshold:
+p < 0.01). The null result in the primary regression is not a
+consequence of imposing linearity on the regime-TFI relationship.
+
+The monotonic pattern across quintiles — coefficients increasing
+from Q1 through Q5 — is informative about the circularity structure
+of the regression. Under Kyle (1985), informed traders split orders
+to minimize price impact, implying that the regime-TFI interaction
+should concentrate in moderate quintiles rather than at the extremes.
+The observed monotonic pattern is inconsistent with this prediction
+and is more consistent with a mechanical explanation: higher absolute
+TFI implies higher signed order flow, which elevates lambda and
+therefore RegimeScore, mechanically inflating the interaction term
+in high-TFI bars. This confirms a second layer of circularity
+operating within the regression itself, beyond the detector
+construction level. As noted in Section 4.5, this upward bias in β₃
+makes the null result more conservative — the efficiency conclusion
+holds even under favorable estimation conditions for the alternative
+hypothesis.
+
+### 4.6.5 Midday Subsample and Stable Regime Conditions
+
+The regime detector's signal quality depends on the reliability of
+its component estimates. Kyle's lambda requires a full 30-bar
+estimation window of stable same-session data, and the trade arrival
+rate z-score is most informative when baseline activity is low.
+Both conditions are best satisfied during the midday portion of the
+trading session (11:00–13:00 ET), after the open's elevated and
+noisy order flow has subsided and before close-of-day dynamics begin.
+This window was pre-specified from theory before running any test.
+
+Restricting the primary regression to midday bars produces
+β₃ = 0.000549, z = 1.398, p = 0.162, N = 20,279 — not significant,
+but with a coefficient 2.7x larger than the full-sample estimate.
+The circularity explanation for this directional improvement is
+constrained by the following observation: under pure mechanical
+inflation, the interaction coefficient should collapse toward the
+unconditional TFI slope (β₁ ≈ 0.0006) rather than away from it.
+The midday β₃ = 0.000549 moves in the opposite direction, which is
+more consistent with genuine signal diluted by open and close noise
+in the full-sample regression. Both interpretations remain possible;
+neither is confirmed at conventional significance thresholds.
+
+A more direct proxy for detector quality is the rolling standard
+deviation of signed order flow within the 30-bar lambda estimation
+window. Low variance in this window indicates stable, representative
+order flow rather than a single large directional episode dominating
+the OLS estimate. Restricting the regression to the bottom tercile
+of this stability metric (threshold: 211 contracts signed-flow std)
+produces the following gradient:
+
+| Condition | N | β₃ | p-value |
+|---|---|---|---|
+| Full sample | 55,634 | 0.000203 | 0.335 |
+| Stable lambda (bottom tercile) | 18,355 | 0.000629 | 0.074 |
+| Unstable lambda (top tercile) | 18,355 | 0.000239 | 0.587 |
+
+The stable-condition β₃ = 0.000629 is 3.1x the full-sample estimate,
+and the gradient from stable to unstable is monotonic. High-regime
+bars constitute a larger fraction of the stable sample (51.6% vs
+43.1%), consistent with stable estimation windows correctly
+classifying more bars as high-regime. Stable-condition bars
+concentrate in the mid-to-late afternoon (13:xx–14:xx peak),
+confirming that the time-based midday window and the stability-based
+criterion capture related but not identical sets of bars.
+
+This result is exploratory: the stability threshold was derived
+from the in-sample distribution and does not replicate in the OOS
+period. It is presented as a hypothesis for future research — with
+limit order book data, a direct orthogonal stability criterion
+(bid-ask spread variance, depth stability, cancellation rate) could
+replace the signed-flow proxy and be tested confirmatorily.
+
+---
+
+## 4.7 Robustness
+
+### 4.7.1 Lagged Regime Conditioning
+
+As the most stringent robustness test, the primary regression
+replaces the contemporaneous RegimeScore_t and interaction
+TFI_t × RegimeScore_t with their one-bar lagged counterparts
+RegimeScore_{t-1} and TFI_t × RegimeScore_{t-1}. This specification
+is fully predetermined — there is no simultaneity between any
+variable — and eliminates any residual circularity from the
+contemporaneous regime score sharing information with bar t's
+order flow.
+
+β₃ (tfi_x_regime_lag) = −0.000089, z = −0.417, p = 0.677,
+N = 55,634.
+
+The null result is unambiguous under this specification. Prior-bar
+regime information has no carry-forward predictive value for next-bar
+returns. Regime-conditioned adverse selection resolves entirely
+within one bar, leaving no exploitable signal at any lag structure.
+This result strengthens the efficiency finding: the primary null
+holds not only in the contemporaneous regime specification but also
+under the most stringent possible predetermined conditioning.
+
+### 4.7.2 Regime Transition Dynamics
+
+An additional specification tests whether TFI is differentially
+predictive at the first bar of a regime transition — the moment
+when RegimeScore crosses 0.5 from below — relative to sustained
+high-regime periods. A transition dummy is constructed as
+TransitionToHigh_t = 1 if RegimeScore_t > 0.5, RegimeScore_{t-1}
+≤ 0.5, and the prior bar was not in an announcement exclusion window
+(to prevent false transitions from exclusion resets):
+
+Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t
+             + β₃·(TFI_t × RegimeScore_t)
+             + β₄·(TFI_t × TransitionToHigh_t)
+             + β₅·Return_t + β₆·TFI_{t-1} + ε_t
+
+The initial result — sustained β₃ = 0.000140 (p = 0.512),
+transition β₄ = 0.000275 (p = 0.018) across 4,376 transition
+bars (7.9% of sample) — appeared to show that TFI is more
+predictive at regime transitions than during sustained high-regime
+conditions. Two diagnostic tests are conducted to evaluate whether
+this reflects genuine informed trader timing or mechanical inflation.
+
+First, transition bars are split by the median RegimeScore delta
+at crossing (median = 0.307). Under genuine informed trader timing,
+the transition effect should be consistent regardless of the
+magnitude of the crossing — a trader does not selectively
+concentrate order flow only at large-delta transitions. Under
+the circularity explanation, the interaction term TFI × TransitionToHigh
+is mechanically larger when the regime score delta is larger, because
+both the transition flag and the interaction magnitude are driven
+by the same underlying directional signed flow. The results show:
+
+| Delta group | N transitions | β₄ | p-value |
+|---|---|---|---|
+| Small delta (≤ median, 0.307) | 2,188 | 0.000063 | 0.633 |
+| Large delta (> median, 0.307) | 2,188 | 0.000414 | 0.016 |
+
+The large-delta coefficient is 6.6x the small-delta coefficient.
+This concentration is inconsistent with genuine informed trader
+timing and strongly consistent with mechanical inflation.
+
+Second, the transition threshold is varied from 0.5 to 0.4 and 0.6.
+If the finding reflects a genuine market phenomenon, it should be
+robust to the specific crossing level. If it is threshold-specific,
+it is more likely an artifact.
+
+| Threshold | Transition bars | β₄ | p-value |
+|---|---|---|---|
+| 0.4 | 4,112 | 0.000400 | 0.001 |
+| 0.5 | 4,376 | 0.000275 | 0.018 |
+| 0.6 | 4,195 | 0.000174 | 0.154 |
+
+The finding is significant at thresholds 0.4 and 0.5 but disappears
+at 0.6. Lower thresholds are associated with larger average
+RegimeScore deltas at crossing, producing more mechanical inflation;
+higher thresholds require larger underlying changes to cross,
+reducing the mechanical component. The threshold dependence mirrors
+the delta magnitude finding.
+
+Both diagnostics consistently support the mechanical inflation
+explanation. The transition dynamics result is substantially
+explained by circularity and is not interpreted as evidence of
+genuine informed trader timing.
 
 ---
 
 ## 5. Market Maker Implications
 
-The formal results in Section 4.5 provide a quantitative basis for
-adaptive quote management in ES futures. The contemporaneous
-characterization — β₃ = 0.0015, z = 7.214, p < 0.001 — establishes
-that each unit of TFI moves prices 2.7x more per bar at the mean
-high-regime score (0.788) than unconditionally. A market maker who
-can compute RegimeScore in real-time from streaming trade data
-therefore has a precise, empirically calibrated measure of their
-current adverse selection exposure.
+The formal results provide two directly actionable insights for
+market makers operating in ES futures.
 
-The practical implication follows directly from the Glosten and
-Milgrom (1985) adverse selection model. A market maker's optimal
-spread width is proportional to the probability that any given
-order is informed and the price impact that informed order will
-generate. The contemporaneous β₃ provides the latter: in high-
-regime conditions, a one-unit increase in TFI generates 0.00188
-log points of price movement rather than 0.0007 unconditionally.
-A market maker observing high RegimeScore and accumulating TFI
-mid-bar should widen quotes proportionally to reflect this elevated
-adverse selection.
-
-The break-even analysis from Section 4.5 contextualizes the
-magnitude. At the mean high-regime RegimeScore of 0.788, the
-break-even TFI for a round-trip trade is 0.031 — meaning any
-bar where |TFI| exceeds 0.031 generates price movement large
-enough to exceed the two-tick round-trip cost of 0.774 basis
-points. Approximately 75% of high-regime bars clear this threshold
-in the in-sample period, confirming that elevated adverse selection
-is a persistent feature of high-regime conditions rather than an
-occasional extreme event.
-
-The null result in the primary predictive specification (β₃ = 0.0001,
-p = 0.570) is itself informative for market makers. The absence of
-regime-conditioned forward predictability confirms that the ES
-futures market incorporates informed order flow within one minute
-in high-regime conditions — meaning a market maker who misses the
-within-bar signal has no opportunity to adjust quotes before the
+The primary finding — no regime-conditioned forward predictability
+at any horizon from T+1 through T+15 — establishes that ES futures
+incorporate regime-conditioned order flow information within one
+1-minute bar. A market maker who misses the within-bar adverse
+selection signal has no opportunity to adjust quotes before the
 price has fully moved. This underscores the importance of real-time
-rather than lagged regime detection for practical implementation.
+rather than bar-level regime detection for practical implementation:
+the signal that distinguishes informed from uninformed order flow
+is present and acting on prices within the bar, not across bars.
 
-[FIGURE: Regime-conditioned TFI slope at T+0 and T+1 through T+15,
-showing contemporaneous amplification and absence of forward
-persistence — to be added in Phase 5]
+The contemporaneous characterization (Section 4.5.2) was initially
+intended to provide a quantitative calibration for real-time quote
+widening — specifically, the degree to which the regime detector
+amplifies the within-bar TFI-return slope. Under the initial
+specification (contemporaneous RegimeScore, three-component detector),
+β₃ = 0.0015 implied a 2.7x amplification at the mean high-regime
+score. This finding does not survive the cleaner specification:
+with RegimeScore lagged by one bar and the Roll spread component
+removed, β₃ = 0.000425 (p = 0.067) is not statistically significant.
+The dominant explanation is residual confounding through regime
+autocorrelation (lag-1 autocorrelation = 0.8427), rather than
+genuine causal amplification. No empirically grounded quantitative
+calibration of adverse selection amplification can be derived from
+the current data.
+
+The most actionable directional finding from the additional tests
+is the stable regime conditions gradient (Section 4.6.5): when
+the lambda estimation window is stable — defined as the bottom
+tercile of rolling signed-flow standard deviation — the
+regime-conditioned TFI interaction coefficient (β₃ = 0.000629,
+p = 0.074) is 3.1x the full-sample estimate and approaches
+conventional significance. This suggests that the regime detector
+produces its strongest signal precisely when its estimation inputs
+are most reliable, and that the ability to identify these stable
+estimation windows — using real-time order flow diagnostics —
+may be the key conditioning variable for practical adverse selection
+management. With limit order book data, the signed-flow stability
+proxy could be replaced with a direct, orthogonal measure of
+estimation quality (bid-ask spread stability, depth constancy,
+low cancellation rate), providing a more precise and less circular
+signal for real-time quote adjustment.
+
+---
+
+## 6. Future Research
+
+Two research directions are motivated directly by the current
+findings and their limitations.
+
+**Direction 1: Orthogonal regime detector with limit order book data.**
+The two layers of circularity documented in this paper — at the
+detector construction level and the regression interaction level —
+are both irreducible with trades-only single-instrument data. A
+regime detector derived from limit order book dynamics (bid-ask
+spread changes, depth imbalance, cancellation-to-trade ratio) would
+share no informational content with TFI and would permit a genuinely
+non-confounded test of the regime-conditioned forward predictability
+hypothesis. The stable regime conditions gradient (β₃ = 0.000629,
+p = 0.074 under stable estimation conditions) and the midday
+directional improvement generate a specific testable prediction:
+an LOB-based regime detector operating under stable liquidity
+conditions should produce significant β₃ in the primary T+1
+regression. Two sub-questions follow from confirmation of this
+hypothesis: does the effect persist at sub-minute resolution, and
+does it survive two-sided transaction costs?
+
+**Direction 2: p% intra-bar amplification framework.**
+If a future study finds significant contemporaneous regime
+amplification with an orthogonal detector, the current framework
+can be extended to characterize the within-bar dynamics of adverse
+selection. Specifically, TFI computed at fixed elapsed-time
+fractions within each bar (10%, 20%, ..., 90% bar completion)
+could be regressed on bar-end returns conditioned on lagged
+RegimeScore_{t-1}, yielding an empirical weight schedule θ_p
+describing how information content accumulates within the bar
+as a function of elapsed time and regime state. This framework
+provides the bridge from a statistically significant regime-TFI
+relationship to a practically implementable real-time adverse
+selection signal. It is constructible from current tick data but
+deferred pending a significant and non-confounded contemporaneous
+finding.
 
 ---
 
