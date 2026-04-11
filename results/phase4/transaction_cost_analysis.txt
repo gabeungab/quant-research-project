@@ -5,14 +5,14 @@ Mean ES close price:          6,460.55
 One-way cost (1 tick):        0.3870 bps
 Round-trip cost (2 ticks):    0.7739 bps
 
-CONTEMPORANEOUS (significant):
+CONTEMPORANEOUS REGRESSION:
   beta_TFI:                   0.00118507
   beta_interaction:           0.00042532
   beta_TFI + beta_int:        0.00161039
   Break-even TFI (1-way):    0.020829
   Break-even TFI (RT):       0.044857
 
-T+1 (not significant, for completeness):
+T+1 REGRESSION:
   beta_TFI:                   0.00062824
   beta_interaction:           0.00020337
   beta_TFI + beta_int:        0.00083160

@@ -3,8 +3,8 @@
 Dep. Variable:             lag_return   R-squared:                       0.008
 Model:                            OLS   Adj. R-squared:                  0.008
 Method:                 Least Squares   F-statistic:                     288.8
-Date:                Fri, 10 Apr 2026   Prob (F-statistic):          2.98e-246
-Time:                        15:02:05   Log-Likelihood:             2.7465e+05
+Date:                Sat, 11 Apr 2026   Prob (F-statistic):          2.98e-246
+Time:                        16:52:22   Log-Likelihood:             2.7465e+05
 No. Observations:               55634   AIC:                        -5.493e+05
 Df Residuals:                   55629   BIC:                        -5.492e+05
 Df Model:                           4                                         
