@@ -7,10 +7,10 @@ contribution — a two-component composite (Kyle's lambda + trade
 arrival rate) that identifies periods of elevated information
 asymmetry in real time from trades-only data. TFI serves two
 explicitly separated roles: (1) a contemporaneous characterization
-of adverse selection amplification, framed as a confounded market
-maker calibration (not an empirical finding), and (2) a forward
-return predictability test, which produced a null result
-(β₃ = 0.0001, p = 0.570) — the primary empirical finding,
+of adverse selection amplification, framed as a confounded
+specification sensitivity result (not an empirical finding), and
+(2) a forward return predictability test, which produced a null
+result (β₃ = 0.000203, p = 0.335) — the primary empirical finding,
 interpreted as an efficiency result about information incorporation
 speed in ES futures.
 
@@ -20,29 +20,22 @@ side volume shares informational content with TFI. Lambda + TAR is
 the least circular available detector given this constraint. We
 deliberately sacrifice some detection accuracy (per Ahern, 2018,
 the most accurate trades-only detector uses TFI variants directly)
-for research design cleanliness. This tradeoff and its implications
-are stated explicitly in the paper's limitations section.
+for research design cleanliness. Two layers of circularity are
+documented: (1) detector construction level — lambda derived from
+the same signed flow inputs as TFI; (2) regression interaction
+level — high TFI bars mechanically have elevated RegimeScore,
+confirmed by monotonic quintile pattern. Both are stated explicitly
+in the paper's limitations section.
 
 Final deliverables:
 - Clean GitHub repository with fully reproducible code
-- 12-15 page research paper in LaTeX/PDF
+- 12–15 page research paper in LaTeX/PDF
 
 ## Research goals and standards
 This project targets quant researcher and trader internship
 applications at top firms. It must be defensible in a technical
 interview — every line of code, every methodological choice,
 every result.
-
-The project has two layers:
-- Layer 1: Regime detector construction and validation. Does the
-  detector correctly identify periods of elevated information
-  asymmetry? Validated via contemporaneous TFI-return amplification
-  (confounded calibration, explicitly framed as such) and the T+1
-  null efficiency finding.
-- Layer 2: Market maker implications — quantified using the
-  contemporaneous dynamic amplification formula and the p% intra-bar
-  framework (empirically derived weight schedule for applying the
-  amplification coefficient to evolving mid-bar TFI).
 
 ---
 
@@ -54,64 +47,79 @@ The project has two layers:
 - Phase 2: Research question selection and literature review
 - Phase 3: Exploratory analysis of chosen phenomenon
 - Phase 4: Formal statistical analysis, in/out-of-sample testing
-- Phase 5: Market maker implications (Layer 2)
-- Phase 6: Paper writing and code polish
+- Phase 5: Paper writing — Sections 1 and 2 (Introduction and
+  Literature Review)
+- Phase 6: Code polish and final repository cleanup
 
 ## Current status
-Phase 4 complete (initial run). Full rerun required with updated
-regime detector and exclusion windows before finalizing results.
-Phase 5 not started.
 
-Phase 0 completed: all data loading, cleaning, and signal
-functions in src/data_loader.py. Stream B and C not started.
+**Phase 4: COMPLETE. All findings finalized.**
 
-Phase 1 completed: ~58.8M RTH trades, 169 trading days.
-Key findings: two activity regimes (stable May-Sep, elevated
-Oct-Dec), modified inverse-J intraday volume, open-only
-volatility spike confirming MOC uninformed flow.
-PAPER.md Section 3 complete.
+formal_analysis.py is fully professionalized and all diagnostic
+tests have been run and interpreted. phase4_findings.md contains
+the complete final record. PAPER.md Sections 3–6 are updated and
+draft-complete. All interpretations are locked.
 
-Phase 2 completed: research question, regime detector design,
-regression specification, and robustness plan finalized.
-See Research Design Summary section below for current spec.
-phase2_development.md and PAPER.md Sections 3-4 complete.
-Note: original detector included Roll spread and ±30 min
-announcement exclusion — both updated in Phase 4 review.
+**Phase 4 final results summary:**
 
-Phase 3 completed:
-- signal_construction.py, plot_signals.py, test_signals.py complete
-- 16 component plots + 3 TFI-by-regime plots in results/phase3/
-- Contemporaneous TFI amplification confirmed as confounded
-  calibration only — retired from paper as independent finding
+Primary regression (T+1): β₃ = 0.000203, p = 0.335 — null.
+ES futures incorporate regime-conditioned TFI within one bar.
+Primary efficiency finding. Non-confounded. β₃ is upward-biased
+by mechanical co-elevation of TFI and RegimeScore (confirmed by
+quintile monotonicity), making the null result a conservative bound.
 
-Phase 4 rerun completed (updated detector, all tests run):
-- formal_analysis.py complete. N = 55,634 bars, 169 trading days
-- Primary T+1: β₃ = 0.000203, p = 0.335 — null efficiency finding
-- Contemporaneous (lagged regime spec): β₃ = 0.000425, p = 0.067
-  — not significant; collapse from initial run (β₃ = 0.0015,
-  p < 0.001) confirms initial finding was circularity-driven
-- Horizon: null at T+5 (p = 0.960) and T+15 (p = 0.709)
-- Subsample: null in May-Sep (p = 0.524) and Oct-Dec (p = 0.399)
-- OOS (2026 Jan-Mar): β₃ = 0.000239, p = 0.004 — significant but
-  requires diagnostic testing before interpretation
-- Lagged regime conditioning: β₃ = -0.000089, p = 0.677 — null
-- Midday subsample: β₃ = 0.000549, p = 0.162 — null but
-  directionally larger than full-sample result
-- TFI quintile interaction: no quintile survives Bonferroni (α=0.01)
-- Regime transition dynamics: sustained p = 0.512 (null),
-  transition p = 0.018 (marginal) — most novel finding
-- All outputs saved to results/phase4/
+Contemporaneous (lagged regime spec): β₃ = 0.000425, p = 0.067
+— not significant. Collapse from initial run (β₃ = 0.0015,
+p < 0.001) confirms initial finding was substantially circularity-
+driven. RegimeScore lag-1 autocorrelation = 0.8427 — lagging by
+one bar removes only ~16% of circularity. Residual confounding is
+the dominant explanation for p = 0.067. Market maker calibration
+application not empirically supported.
 
-Phase 4 diagnostics pending (before finalizing interpretations):
-- OOS five diagnostic tests: rolling β₃ by week, RegimeScore
-  distribution comparison, realized volatility comparison, result
-  by month, permutation test
-- Transition dynamics delta-magnitude test: does transition β vary
-  with size of RegimeScore delta at crossing?
+Horizon analysis: null at T+5 (p = 0.960) and T+15 (p = 0.709).
+Information incorporation confirmed within one bar.
 
-Regime detector orthogonality: lambda + TAR confirmed as best
-achievable from trades-only data. All alternatives reviewed and
-rejected. Stated as data limitation in paper.
+Subsample stability: null in May–Sep (p = 0.524) and Oct–Dec
+(p = 0.399). Null result is a structural property, not a sub-period
+artifact.
+
+OOS validation (2026 Jan–Mar, N = 14,774): full-period
+β₃ = 0.000239, p = 0.004. Episodic — driven entirely by the final
+two weeks (Feb 23–Mar 6). January (p = 0.412) and February
+(p = 0.209) are individually null. Late-period β₃ = 0.000531,
+p = 0.012; early-period β₃ = 0.000046, p = 0.515. Permutation
+test confirms late-period result is not random noise. Lambda window
+stability does not differ materially between late and early OOS
+(ratio 1.03x). No orthogonal conditioning variable explains the
+late-period significance. In-sample efficiency finding stands.
+
+Lagged regime conditioning: β₃ = −0.000089, p = 0.677 — null under
+fully predetermined conditioning with zero simultaneity. Cleanest
+possible test.
+
+Midday subsample: β₃ = 0.000549, p = 0.162 — not significant but
+2.7x full-sample coefficient. Pre-specified from theory. Circularity
+explanation constrained: coefficient moves away from β₁, not toward
+it.
+
+Stable regime conditions: bottom tercile of lambda window std
+(threshold 211 contracts) produces β₃ = 0.000629, p = 0.074 vs
+full-sample p = 0.335 and unstable p = 0.587. Monotonic gradient
+consistent with detector quality hypothesis. Stable bars concentrate
+in 13–14:xx. Does not replicate OOS. Exploratory only.
+
+TFI quintile interaction: no quintile survives Bonferroni (α=0.01).
+T+1 null is not a linearity artifact. Monotonic Q1→Q5 pattern
+confirms second circularity layer at regression interaction level.
+
+Regime transition dynamics: transition β₄ = 0.000275, p = 0.018
+(4,376 bars). Retired as primary finding — both diagnostics support
+circularity. Delta magnitude: large-delta β = 0.000414 (6.6x
+small-delta β = 0.000063). Threshold robustness: significant at
+0.4 and 0.5, disappears at 0.6.
+
+**Next phase:** Phase 5 — write PAPER.md Sections 1 (Introduction)
+and 2 (Literature Review). No additional analysis required.
 
 ---
 
@@ -120,12 +128,12 @@ quant-research-project/
     /data        — data documentation only, no raw files
     /notebooks   — exploratory Jupyter notebooks (not started)
     /src         — clean reusable Python modules
-        data_loader.py       — data loading, cleaning, stats, plotting
-        formal_analysis.py   — Phase 4 formal regression analysis
-        plot_signals.py      — Phase 3 component plots
+        data_loader.py         — data loading, cleaning, stats, plotting
+        formal_analysis.py     — Phase 4 formal regression analysis
+        plot_signals.py        — Phase 3 component plots
         signal_construction.py — signal and regime score functions
-        test_load.py         — Phase 1 data loading and stats checks
-        test_signals.py      — sanity checks for signal outputs
+        test_load.py           — Phase 1 data loading and stats checks
+        test_signals.py        — sanity checks for signal outputs
     /results
         /phase1              — Phase 1 outputs
             daily_stats.csv
@@ -135,25 +143,20 @@ quant-research-project/
             intraday_volatility.png
             trade_size_distribution.png
         /phase3              — Phase 3 exploratory plots
-            lambda_timeseries.png
-            lambda_intraday.png
-            lambda_distribution.png
-            lambda_individual_days.png
-            roll_timeseries.png
-            roll_intraday.png
-            roll_distribution.png
-            roll_individual_days.png
-            arrival_timeseries.png
-            arrival_intraday.png
-            arrival_distribution.png
-            arrival_individual_days.png
-            regime_score_timeseries.png
-            regime_score_intraday.png
-            regime_score_distribution.png
-            regime_score_individual_days.png
+            lambda_timeseries.png          lambda_intraday.png
+            lambda_distribution.png        lambda_individual_days.png
+            arrival_timeseries.png         arrival_intraday.png
+            arrival_distribution.png       arrival_individual_days.png
+            regime_score_timeseries.png    regime_score_intraday.png
+            regime_score_distribution.png  regime_score_individual_days.png
         /phase4              — Phase 4 formal analysis outputs
             primary_regression.txt
             contemporaneous_regression.txt
+            oos_primary_regression.txt
+            lagged_regime_regression.txt
+            midday_regression.txt
+            quintile_interaction_regression.txt
+            transition_dynamics_regression.txt
             horizon_t5_regression.txt
             horizon_t15_regression.txt
             subsample_full_regression.txt
@@ -164,6 +167,7 @@ quant-research-project/
     /paper       — working paper and research documents
         PAPER.md              — formal working paper draft
         phase2_development.md — Phase 2 research development
+        phase4_findings.md    — Phase 4 complete findings record
     JOURNAL.md   — running research log (dated session entries)
     NOTES.md     — general technical concept reference
     CLAUDE.md    — this file
@@ -190,6 +194,11 @@ Connects findings to known concepts without explaining them.
 Every claim is supported by a number from the analysis.
 Sections added incrementally as phases complete.
 
+phase4_findings.md — complete internal record of all Phase 4
+test results, interpretations, diagnostic outputs, and design
+decisions. More detailed than PAPER.md. Used as the source of
+truth for paper writing.
+
 The distinction: if a concept applies to any project, it goes
 in NOTES. If it is specific to this dataset and analysis, it
 goes in JOURNAL (findings) or PAPER.md (if paper-ready).
@@ -203,8 +212,8 @@ Computed at 1-minute resolution from aggressor side field.
 
 **Regime score:**
 RegimeScore_t = 1 / (1 + exp(−(z_lambda + z_arrival)))
-Two components only: Kyle's lambda (30-min rolling OLS) and trade
-arrival rate (5-min rolling). Roll spread removed — non-orthogonal
+Two components only: Kyle's lambda (30-bar rolling OLS) and trade
+arrival rate (5-bar rolling). Roll spread removed — non-orthogonal
 to lambda, fails in one-sided markets, redundant with TAR.
 All z-scores rolling, past data only. Set to 0 in exclusion windows.
 
@@ -218,25 +227,23 @@ All z-scores rolling, past data only. Set to 0 in exclusion windows.
 Return_t = α + β₁·TFI_t + β₂·RegimeScore_{t-1} +
            β₃·(TFI_t × RegimeScore_{t-1}) +
            β₅·TFI_{t-1} + ε_t
-Uses lagged RegimeScore_{t-1} — regime fully predetermined before
-bar t's trades begin. TFI-Return confounding within the bar remains
-(both constructed from same bar's trades); used for market maker 
-calibration only, NOT a primary empirical finding. β₃ almost 
-certainly overestimates true causal amplification. Dynamic 
-amplification: dReturn/dTFI = β₁ + β₃ × RegimeScore_{t-1}.
+Uses lagged RegimeScore_{t-1}. TFI-Return confounding within the
+bar remains irreducible with trades-only data. Presented as a
+specification sensitivity result only — NOT a primary empirical
+finding. β₃ = 0.000425, p = 0.067 (not significant).
 
 **Primary regression:**
 Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t +
                β₃·(TFI_t × RegimeScore_t) +
                β₄·Return_t + β₅·TFI_{t-1} + ε_t
 β₃ is the primary test statistic.
-Formal result: β₃ = 0.0001, p = 0.570 — null result.
+Final result: β₃ = 0.000203, p = 0.335 — null efficiency finding.
 
 **Key papers:**
 - Kyle (1985) — Econometrica — lambda and informed trading
 - Glosten and Milgrom (1985) — JFE — adverse selection framework
 - Cont, Kukanov, Stoikov (2014) — JFEC — OFI predicting returns
-- Roll (1984) — JF — implicit spread estimator
+- Roll (1984) — JF — implicit spread estimator (removed from detector)
 - Easley, Lopez de Prado, O'Hara (2012) — RFS — VPIN
 - Ahern (2018) — NBER — informed trading proxies; order imbalance
   and flow autocorrelation most accurate but circular with TFI
@@ -248,16 +255,15 @@ Formal result: β₃ = 0.0001, p = 0.570 — null result.
 - In-sample: 2025-05-01 to 2025-12-30 (169 trading days)
   Location: ~/Desktop/Quant Research Project/raw-data/
             GLBX-20250501-20251231/
-- Out-of-sample: 2026-01-01 to 2026-03-09
+- Out-of-sample: 2026-01-02 to 2026-03-06 (46 trading days)
   Location: ~/Desktop/Quant Research Project/raw-data/
             GLBX-20260101-20260309/
 - Fields used: ts_event_et (Eastern time), price, size,
   side (B/A/N)
 - Fields ignored: rtype, publisher_id, instrument_id, action,
-  depth, flags, ts_in_delta, sequence (all constant or
-  irrelevant)
-- Symbol rolls: ESM5 (May-Jun) → ESU5 (Jul-Sep) →
-  ESZ5 (Oct-Dec) → ESH6 (Jan-Mar 2026)
+  depth, flags, ts_in_delta, sequence (all constant or irrelevant)
+- Symbol rolls: ESM5 (May–Jun) → ESU5 (Jul–Sep) →
+  ESZ5 (Oct–Dec) → ESH6 (Jan–Mar 2026)
 - Excluded dates: 2025-05-26, 2025-07-04, 2025-09-01,
   2025-11-27 (holidays/half-sessions)
 
@@ -269,7 +275,7 @@ databento library
 
 ## Standards for Claude Code to enforce
 - Train/test split is time-based: in-sample 2025, out-of-sample
-  2026. Never suggest touching out-of-sample data before Phase 4.
+  2026. Never touch out-of-sample data for specification search.
 - Methodology must be pre-registered before formal tests. Flag
   if tests run before plan is documented in JOURNAL.md.
 - All regressions require Newey-West standard errors (maxlags=5).

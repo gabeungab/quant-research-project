@@ -1417,6 +1417,76 @@ None
 ## 2026-04-11
 
 **Session Summary:**
+- Ran full formal_analysis.py pipeline with all diagnostic tests
+  and recorded final results and interpreted all diagnostic outputs.
+- Updated phase4_findings.md with complete final results and
+  interpretations, all pending items resolved.
+- Professionalized formal_analysis.py (formatting, code quality,
+  documentation, helper functions, output formatting).
+- Updated PAPER.md: rewrote Sections 4.2–4.7 and Section 5 to
+  reflect the two-component detector, final results, actual tests
+  run, reframed market maker implications, and added Section 6.
+
+**Findings:**
+
+All Phase 4 findings locked in. Full record in phase4_findings.md.
+Key resolved items from this session:
+
+RegimeScore lag-1 autocorrelation = 0.8427. Falls between the two
+interpretation thresholds, with residual confounding dominant.
+Contemporaneous p = 0.067 is best explained as primarily driven by
+residual circularity through regime autocorrelation, with genuine
+signal a secondary and unquantifiable contributor.
+
+OOS significance (p = 0.004) is episodic. Driven entirely by the
+final two weeks (Feb 23–Mar 6, 2026), during which realized
+volatility was approximately 2x the preceding period. January and
+February individually are null. Permutation test confirms the
+late-period result is not random noise. No orthogonal conditioning
+variable explains or predicts it. OOS return scale is confirmed
+as a genuine market difference (OOS mean |return| = 0.42x in-
+sample), not a data issue.
+
+Transition dynamics finding (p = 0.018) is substantially explained
+by circularity. Delta magnitude diagnostic: large-delta transition
+β = 0.000414 (6.6x small-delta β = 0.000063). Threshold robustness:
+significant at 0.4 and 0.5, disappears at 0.6. Both diagnostics
+consistently support mechanical inflation over genuine informed
+trader timing. Retired as primary finding.
+
+Stable regime conditions: β₃ = 0.000629 (p = 0.074) in bottom
+tercile of lambda window stability vs β₃ = 0.000239 (p = 0.587)
+in top tercile. Gradient monotonic and consistent with detector
+quality hypothesis. Stable bars concentrate in afternoon (13-14:xx),
+not midday. Does not replicate OOS. Presented as exploratory only.
+
+Late OOS investigation reached defined dead end: late OOS lambda
+stability is marginally higher than early OOS (1.029x ratio), not
+lower. Late OOS significance concentrates in unstable lambda bars
+(p = 0.050), not stable ones (p = 0.365). No connection between
+afternoon stable conditions and the late OOS episode. The two
+phenomena have different underlying mechanisms and cannot be unified.
+
+Quintile monotonicity confirms second circularity layer at the
+regression interaction level. Upward bias in β₃ makes the T+1
+null result a conservative bound — efficiency conclusion holds
+even under favorable estimation conditions for the alternative
+hypothesis.
+
+**Open questions:**
+None
+
+**Next step:**
+1. Review final Phase 4 findings and interpretations and plan
+   plan for any possible improvements.
+2. Write remaining sections of PAPER.md (Section 1: Introduction
+   2: Literature Review).
+
+---
+
+## 2026-04-12
+
+**Session Summary:**
 - 
 
 **Findings:**
