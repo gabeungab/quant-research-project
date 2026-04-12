@@ -66,11 +66,21 @@ def compute_arrival_rate(df, window=5):
     return arrival_series
 
 
-def compute_regime_score(lambda_series, arrival_series, exclusion_mask, 
-                         lambda_window=30, arrival_window=5, roll_window=30):
+def compute_regime_score(lambda_series, arrival_series, exclusion_mask,
+                         lambda_window=30, arrival_window=5):
     """
-    Combine Kyle's lambda and trade arrival rate into a continuous RegimeScore 
-    in [0, 1] via rolling z-score standardization and a logistic transformation.
+    Combine Kyle's lambda and trade arrival rate into a continuous RegimeScore
+    in [0, 1] using a multiplicative formulation.
+
+    RegimeScore_t = logistic(z_lambda_t) × logistic(z_arrival_t)
+
+    This implements a hierarchical structure: lambda provides the primary
+    informed trading signal, and TAR acts as a scaling factor that suppresses
+    the score when market depth is low (ruling out thin markets as the cause
+    of elevated lambda). When lambda is low, RegimeScore is low regardless
+    of TAR. When TAR is low, it suppresses the lambda signal even if lambda
+    is elevated. RegimeScore is high only when both components are elevated
+    simultaneously.
 
     Parameters
     ----------
@@ -81,9 +91,9 @@ def compute_regime_score(lambda_series, arrival_series, exclusion_mask,
     exclusion_mask : pd.Series
         Boolean Series indexed by ts_event_et; True where bar is excluded.
     lambda_window : int
-        Rolling window for lambda and roll z-scores. Default 30.
+        Rolling window for lambda z-score standardization. Default 30.
     arrival_window : int
-        Rolling window for arrival rate z-score. Default 5.
+        Rolling window for arrival rate z-score standardization. Default 5.
 
     Returns
     -------
@@ -92,21 +102,25 @@ def compute_regime_score(lambda_series, arrival_series, exclusion_mask,
     """
     def rolling_zscore(series, window):
         mean = series.rolling(window=window, min_periods=window).mean()
-        std = series.rolling(window=window, min_periods=window).std()
+        std  = series.rolling(window=window, min_periods=window).std()
         return (series - mean) / std.replace(0, float('nan'))
 
-    z_lambda = rolling_zscore(lambda_series, window=lambda_window)
+    def logistic(z):
+        return 1 / (1 + np.exp(-z))
+
+    z_lambda  = rolling_zscore(lambda_series,  window=lambda_window)
     z_arrival = rolling_zscore(arrival_series, window=arrival_window)
 
-    composite = z_lambda + z_arrival
-    regime_score = 1 / (1 + np.exp(-composite))
+    # Multiplicative combination: each component mapped to (0, 1) independently
+    # via logistic, then multiplied. This ensures TAR scales lambda's signal
+    # rather than independently adding to it.
+    regime_score = logistic(z_lambda) * logistic(z_arrival)
 
     # Align exclusion mask to regime_score index before applying
     exclusion_aligned = exclusion_mask.reindex(regime_score.index, fill_value=False)
     regime_score = regime_score.where(~exclusion_aligned, other=0.0)
 
     return regime_score
-
 
 ROLL_DATES = [
     pd.Timestamp('2025-06-19'),  # ESM5 -> ESU5
@@ -119,7 +133,7 @@ def compute_exclusion_mask(bars, announcement_dates):
     """
     Build a boolean exclusion mask over the 1-minute bar index, marking
     three categories of contaminated observations: the final 10 minutes
-    of each RTH session (15:50-16:00 ET), a ±30-minute window around
+    of each RTH session (15:50-16:00 ET), a +30-minute window after
     each macro announcement, and contract roll dates plus three preceding
     trading days. All exclusions are restricted to RTH bars only.
 
@@ -128,8 +142,8 @@ def compute_exclusion_mask(bars, announcement_dates):
     bars : pd.DataFrame or pd.Series
         1-minute bar DataFrame/Series indexed by ts_event_et.
     announcement_dates : list of pd.Timestamp
-        Announcement datetimes (Eastern). Each triggers a ±30-minute
-        exclusion window.
+        Announcement datetimes (Eastern). Each triggers a +30-minute
+        post-announcement exclusion window.
 
     Returns
     -------
@@ -139,7 +153,7 @@ def compute_exclusion_mask(bars, announcement_dates):
     index = bars.index
     mask = pd.Series(False, index=index)
 
-    rth_open = pd.Timestamp('09:30').time()
+    rth_open  = pd.Timestamp('09:30').time()
     rth_close = pd.Timestamp('16:00').time()
     is_rth = pd.Series(
         (index.time >= rth_open) & (index.time <= rth_close),
@@ -153,7 +167,7 @@ def compute_exclusion_mask(bars, announcement_dates):
     # +30 minutes after each macro announcement — RTH only
     for ann_dt in announcement_dates:
         window_start = ann_dt
-        window_end = ann_dt + pd.Timedelta(minutes=30)
+        window_end   = ann_dt + pd.Timedelta(minutes=30)
         mask |= (
             (index >= window_start) &
             (index <= window_end) &

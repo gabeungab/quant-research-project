@@ -237,6 +237,234 @@ print(f"    < 0.70 → meaningful circularity removed;")
 print(f"             contemporaneous p-value may reflect genuine signal")
 
 # =============================================================================
+# DETECTOR FORMULATION COMPARISON — MULTIPLICATIVE VS ADDITIVE
+# =============================================================================
+# Compares the multiplicative RegimeScore (current) against the prior additive
+# formulation to quantify how much the design change affects the signal.
+# High correlation indicates findings are robust to the formulation choice.
+# Low correlation indicates materially different regime classifications.
+
+print("\n" + "=" * 60)
+print("DETECTOR FORMULATION COMPARISON — MULTIPLICATIVE VS ADDITIVE")
+print("=" * 60)
+
+def _rolling_zscore(series, window):
+    mean = series.rolling(window=window, min_periods=window).mean()
+    std  = series.rolling(window=window, min_periods=window).std()
+    return (series - mean) / std.replace(0, float('nan'))
+
+# Recompute additive score on same lambda and arrival series
+z_lambda_add  = _rolling_zscore(lambda_series,  window=30)
+z_arrival_add = _rolling_zscore(arrival_series, window=5)
+composite_add = z_lambda_add + z_arrival_add
+regime_score_additive = 1 / (1 + np.exp(-composite_add))
+
+# Apply same exclusion mask
+excl_aligned = exclusion_mask.reindex(regime_score_additive.index, fill_value=False)
+regime_score_additive = regime_score_additive.where(~excl_aligned, other=0.0)
+
+# Align both to regression index for fair comparison
+rs_mult = reg['regime_score']
+rs_add  = regime_score_additive.reindex(reg.index)
+
+valid   = rs_mult.notna() & rs_add.notna()
+corr    = rs_mult[valid].corr(rs_add[valid])
+
+print(f"\n  Pearson correlation (multiplicative vs additive): {corr:.4f}")
+print(f"\n  {'Metric':<30} {'Multiplicative':>16} {'Additive':>16}")
+print(f"  {'-' * 64}")
+for metric, fn in [('Mean',   lambda s: s.mean()),
+                   ('Std',    lambda s: s.std()),
+                   ('Median', lambda s: s.median()),
+                   ('75th pctile', lambda s: s.quantile(0.75))]:
+    print(f"  {metric:<30} {fn(rs_mult[valid]):>16.4f} {fn(rs_add[valid]):>16.4f}")
+
+hi_mult = (rs_mult > 0.5).mean()
+hi_add  = (rs_add  > 0.5).mean()
+print(f"\n  High-regime fraction (>0.5):")
+print(f"    Multiplicative: {hi_mult:.4f} ({hi_mult * 100:.1f}%)")
+print(f"    Additive:       {hi_add:.4f}  ({hi_add  * 100:.1f}%)")
+
+agreement = ((rs_mult > 0.5) == (rs_add > 0.5))[valid].mean()
+print(f"\n  Bar-level regime classification agreement: {agreement:.4f} ({agreement*100:.1f}%)")
+print(f"\n  Interpretation:")
+print(f"    Correlation > 0.95 → formulations are equivalent in practice;")
+print(f"                         findings are robust to design choice.")
+print(f"    Correlation < 0.90 → material difference; rerun all tests")
+print(f"                         and compare findings explicitly.")
+
+# =============================================================================
+# REGIME DETECTOR VALIDATION
+# =============================================================================
+# Two formal validation tests confirm the regime detector is identifying
+# periods of elevated information asymmetry as intended, before any
+# predictability tests are run.
+#
+# Test 1: Contemporaneous TFI-return slope should be statistically
+#         significantly larger in high-regime bars than low-regime bars.
+#         Informed order flow moves prices more per unit of TFI within
+#         the same bar — this is a direct implication of Kyle (1985).
+#
+# Test 2: RegimeScore should be measurably elevated in the 30-minute
+#         pre-announcement window relative to matched non-announcement
+#         windows of the same time-of-day, when informed traders with
+#         early signal access are most active.
+
+print("\n" + "=" * 60)
+print("REGIME DETECTOR VALIDATION")
+print("=" * 60)
+
+# ── Validation Test 1: Contemporaneous TFI-return slope by regime ─────────────
+print("\n--- Validation Test 1: Contemporaneous TFI-Return Slope by Regime ---")
+print("  Tests whether the within-bar TFI-return relationship is")
+print("  significantly stronger in high-regime bars than low-regime bars.")
+print("  A significant interaction confirms the detector correctly")
+print("  identifies periods of elevated within-bar price impact.")
+
+# Use contemporaneous Return_t as dependent variable
+# Regime is split into binary high/low dummy for interpretability
+# RegimeScore_t is used here (not lagged) since this is a within-bar
+# characterization test, not a predictive test — confounding is acknowledged.
+
+reg_val = reg.copy()
+reg_val['high_regime_dummy'] = (reg_val['regime_score'] > 0.5).astype(float)
+reg_val['tfi_x_high_regime'] = reg_val['tfi'] * reg_val['high_regime_dummy']
+
+val_cols = ['tfi', 'high_regime_dummy', 'tfi_x_high_regime', 'lag_tfi']
+y_val    = reg_val['lag_return']   # Return_t (contemporaneous)
+X_val    = sm.add_constant(reg_val[val_cols])
+model_val1 = sm.OLS(y_val, X_val).fit(cov_type='HAC', cov_kwds={'maxlags': HAC_LAGS})
+
+b1_val   = model_val1.params['tfi']
+b3_val   = model_val1.params['tfi_x_high_regime']
+p3_val   = model_val1.pvalues['tfi_x_high_regime']
+z3_val   = model_val1.tvalues['tfi_x_high_regime']
+
+slope_low  = b1_val
+slope_high = b1_val + b3_val
+
+print(f"\n  Contemporaneous validation regression | N={int(model_val1.nobs):,}")
+print(f"  {'Variable':<25} {'Coeff':>12} {'z-stat':>8} {'p-value':>10}")
+print(f"  {'-' * 59}")
+for var in ['const', 'tfi', 'high_regime_dummy', 'tfi_x_high_regime', 'lag_tfi']:
+    c = model_val1.params[var]
+    t = model_val1.tvalues[var]
+    p = model_val1.pvalues[var]
+    sig = '***' if p < 0.01 else '**' if p < 0.05 else '*' if p < 0.10 else ''
+    print(f"  {var:<25} {c:>12.6f} {t:>8.3f} {p:>10.4f} {sig}")
+
+print(f"\n  TFI-return slope breakdown:")
+print(f"    Low-regime  (RegimeScore ≤ 0.5): {slope_low:.6f}  (= β₁)")
+print(f"    High-regime (RegimeScore > 0.5): {slope_high:.6f}  (= β₁ + β₃)")
+if slope_low != 0:
+    print(f"    Amplification ratio: {slope_high / slope_low:.3f}x")
+
+print(f"\n  Interaction term (β₃ = tfi_x_high_regime):")
+print(f"    Coeff:  {b3_val:.6f}")
+print(f"    z-stat: {z3_val:.3f}")
+print(f"    p-value: {p3_val:.4f}")
+if p3_val < 0.05:
+    print(f"  → SIGNIFICANT: High-regime slope is statistically larger.")
+    print(f"    Detector correctly identifies elevated within-bar price impact.")
+else:
+    print(f"  → NOT SIGNIFICANT: Cannot confirm regime-conditioned slope difference.")
+    print(f"    Note: result is directionally consistent if high-regime slope > low.")
+
+print(f"\n  NOTE: This test uses contemporaneous RegimeScore_t — TFI-Return")
+print(f"  confounding within bar t is present and acknowledged. This is a")
+print(f"  directional sanity check, not a causal test.")
+
+# ── Validation Test 2: Pre-announcement RegimeScore elevation ─────────────────
+print("\n--- Validation Test 2: Pre-Announcement RegimeScore Elevation ---")
+print("  Tests whether RegimeScore is elevated in the 30-minute window")
+print("  before scheduled macro announcements relative to matched")
+print("  non-announcement windows of the same time-of-day.")
+print("  Informed traders with early signal access should be active")
+print("  in this window, producing elevated lambda and TAR.")
+
+# Build a DataFrame of all bars in the regression sample with their
+# time-of-day and a flag for whether they fall in a pre-announcement window.
+
+reg_val2 = reg[['regime_score', 'lag_return']].copy()
+reg_val2['hour_minute'] = reg_val2.index.hour * 60 + reg_val2.index.minute
+reg_val2['pre_announcement'] = False
+
+# For each announcement, flag the 30 bars before it
+ann_dates_aligned = ann_dates  # already tz-stripped if needed above
+for ann_dt in ann_dates_aligned:
+    window_end   = ann_dt
+    window_start = ann_dt - pd.Timedelta(minutes=30)
+    in_window = (
+        (reg_val2.index >= window_start) &
+        (reg_val2.index <  window_end)
+    )
+    reg_val2.loc[in_window, 'pre_announcement'] = True
+
+n_pre  = reg_val2['pre_announcement'].sum()
+n_ctrl = (~reg_val2['pre_announcement']).sum()
+
+rs_pre  = reg_val2.loc[ reg_val2['pre_announcement'], 'regime_score']
+rs_ctrl = reg_val2.loc[~reg_val2['pre_announcement'], 'regime_score']
+
+print(f"\n  Pre-announcement bars:  {n_pre:,}")
+print(f"  Control bars:           {n_ctrl:,}")
+print(f"\n  RegimeScore comparison:")
+print(f"    Pre-announcement mean:  {rs_pre.mean():.4f}")
+print(f"    Control mean:           {rs_ctrl.mean():.4f}")
+print(f"    Difference:             {rs_pre.mean() - rs_ctrl.mean():+.4f}")
+print(f"    Pre/control ratio:      {rs_pre.mean() / rs_ctrl.mean():.3f}x")
+
+# Welch's t-test (unequal variance) — appropriate since group sizes differ
+from scipy import stats as scipy_stats
+t_stat, p_ttest = scipy_stats.ttest_ind(rs_pre, rs_ctrl, equal_var=False)
+
+print(f"\n  Welch's t-test (pre-announcement vs control):")
+print(f"    t-statistic: {t_stat:.3f}")
+print(f"    p-value:     {p_ttest:.4f}")
+
+if p_ttest < 0.05:
+    if rs_pre.mean() > rs_ctrl.mean():
+        print(f"  → SIGNIFICANT: RegimeScore is elevated before announcements.")
+        print(f"    Consistent with informed trading in the pre-announcement window.")
+    else:
+        print(f"  → SIGNIFICANT but in wrong direction: RegimeScore is lower")
+        print(f"    before announcements. Investigate — this is unexpected.")
+else:
+    print(f"  → NOT SIGNIFICANT: Cannot confirm pre-announcement elevation.")
+
+# Time-of-day matched comparison: restrict control to bars at the same
+# hours as pre-announcement bars, to rule out time-of-day confounding.
+# Most announcements are at 8:30 AM (CPI, NFP) or 2:00 PM (FOMC).
+# Pre-announcement windows therefore cover ~8:00-8:30 AM and ~1:30-2:00 PM.
+pre_hours = set(reg_val2.loc[reg_val2['pre_announcement']].index.hour.unique())
+rs_ctrl_matched = reg_val2.loc[
+    (~reg_val2['pre_announcement']) &
+    (reg_val2.index.hour.isin(pre_hours)),
+    'regime_score'
+]
+
+print(f"\n  Time-of-day matched comparison (same hours as pre-announcement):")
+print(f"    Pre-announcement hours: {sorted(pre_hours)}")
+print(f"    Matched control bars:   {len(rs_ctrl_matched):,}")
+print(f"    Matched control mean:   {rs_ctrl_matched.mean():.4f}")
+print(f"    Pre-announcement mean:  {rs_pre.mean():.4f}")
+print(f"    Difference:             {rs_pre.mean() - rs_ctrl_matched.mean():+.4f}")
+
+t_matched, p_matched = scipy_stats.ttest_ind(rs_pre, rs_ctrl_matched, equal_var=False)
+print(f"    t-statistic: {t_matched:.3f}  p-value: {p_matched:.4f}")
+
+if p_matched < 0.05:
+    if rs_pre.mean() > rs_ctrl_matched.mean():
+        print(f"  → SIGNIFICANT after time-of-day matching.")
+        print(f"    Pre-announcement elevation is not a time-of-day artifact.")
+    else:
+        print(f"  → SIGNIFICANT but in wrong direction after matching.")
+else:
+    print(f"  → NOT SIGNIFICANT after time-of-day matching.")
+    print(f"    Elevation may reflect time-of-day pattern rather than")
+    print(f"    informed trading specifically before announcements.")
+
+# =============================================================================
 # SUMMARY STATISTICS
 # =============================================================================
 

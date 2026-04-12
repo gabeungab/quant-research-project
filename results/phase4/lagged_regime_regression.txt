@@ -2,9 +2,9 @@
 ==============================================================================
 Dep. Variable:             fwd_return   R-squared:                       0.236
 Model:                            OLS   Adj. R-squared:                  0.236
-Method:                 Least Squares   F-statistic:                     584.2
-Date:                Sat, 11 Apr 2026   Prob (F-statistic):               0.00
-Time:                        16:52:22   Log-Likelihood:             2.8187e+05
+Method:                 Least Squares   F-statistic:                     583.9
+Date:                Sun, 12 Apr 2026   Prob (F-statistic):               0.00
+Time:                        18:15:05   Log-Likelihood:             2.8187e+05
 No. Observations:               55634   AIC:                        -5.637e+05
 Df Residuals:                   55628   BIC:                        -5.637e+05
 Df Model:                           5                                         
@@ -12,17 +12,17 @@ Covariance Type:                  HAC
 ====================================================================================
                        coef    std err          z      P>|z|      [0.025      0.975]
 ------------------------------------------------------------------------------------
-const            -3.792e-06   9.09e-06     -0.417      0.677   -2.16e-05     1.4e-05
-tfi                  0.0008      0.000      5.576      0.000       0.000       0.001
-regime_score_lag  6.631e-06   1.49e-05      0.446      0.656   -2.25e-05    3.58e-05
-tfi_x_regime_lag -8.858e-05      0.000     -0.417      0.677      -0.001       0.000
+const            -3.813e-06   7.44e-06     -0.512      0.608   -1.84e-05    1.08e-05
+tfi                  0.0007      0.000      6.760      0.000       0.001       0.001
+regime_score_lag  1.354e-05   2.29e-05      0.592      0.554   -3.13e-05    5.84e-05
+tfi_x_regime_lag    -0.0002      0.000     -0.476      0.634      -0.001       0.000
 lag_return          -0.4880      0.009    -53.892      0.000      -0.506      -0.470
-lag_tfi          -5.145e-05   5.52e-05     -0.932      0.352      -0.000    5.68e-05
+lag_tfi          -5.119e-05   5.51e-05     -0.928      0.353      -0.000    5.69e-05
 ==============================================================================
-Omnibus:                    14822.731   Durbin-Watson:                   2.316
-Prob(Omnibus):                  0.000   Jarque-Bera (JB):           939439.327
+Omnibus:                    14823.148   Durbin-Watson:                   2.316
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):           939431.877
 Skew:                          -0.384   Prob(JB):                         0.00
-Kurtosis:                      23.117   Cond. No.                         633.
+Kurtosis:                      23.116   Cond. No.                         589.
 ==============================================================================
 
 Notes:
