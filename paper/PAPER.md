@@ -128,14 +128,18 @@ where order flow is more likely to reflect private information.
 
 The informed trading regime score, RegimeScore_t ∈ [0, 1], is a
 continuous measure of the probability that bar t occurs during a
-period of elevated information asymmetry. The construction begins
-from the observation that Kyle's lambda — while the most direct
-available measure of adverse selection intensity — can be elevated
-for five distinct reasons besides genuine informed trading: thin
-markets or low depth, market stress or sudden uncertainty, market
-maker inventory pressure, mechanical order clustering, and contract
-roll proximity. The regime detector is designed to address as many
-of these as possible given the constraints of trades-only data.
+period of elevated information asymmetry. Kyle's lambda is chosen
+as the primary component because it is the most direct available
+measure of adverse selection intensity — it captures price impact
+per unit of signed order flow in real time from trades-only data,
+which is precisely the quantity the Glosten-Milgrom and Kyle
+frameworks identify as the signature of informed trading. However,
+high lambda alone is insufficient: it can be elevated for five
+distinct reasons besides genuine informed trading — thin markets
+or low depth, market stress or sudden uncertainty, market maker
+inventory pressure, mechanical order clustering, and contract roll
+proximity. The regime detector is designed to address as many of
+these as possible given the constraints of trades-only data.
 
 **Kyle's lambda** measures price impact per unit of signed order
 flow, estimated from a rolling OLS regression of price changes on
@@ -155,50 +159,12 @@ is elevated, preventing misclassification of illiquid episodes as
 informed. A shorter window than lambda is used to reflect the faster
 response of trading activity to changing market conditions.
 
-**Multiplicative combination:** The two components are combined using
-a multiplicative formulation that implements the hierarchical
-structure described above. Each component is first standardized via
-a rolling z-score:
-
-z_lambda_t  = (lambda_t  − μ_lambda)  / σ_lambda
-z_arrival_t = (arrival_t − μ_arrival) / σ_arrival
-
-Each z-score is then mapped to (0, 1) via the logistic function, and
-the two logistic outputs are multiplied:
-
-RegimeScore_t = logistic(z_lambda_t) × logistic(z_arrival_t)
-
-where logistic(x) = 1 / (1 + exp(−x)).
-
-This formulation ensures RegimeScore is high only when both
-components are simultaneously elevated. When lambda is low,
-RegimeScore is low regardless of TAR. When TAR is low, it suppresses
-the lambda signal proportionally. The multiplicative structure
-contrasts with an additive formulation (logistic(z_lambda +
-z_arrival)), which would allow a very high TAR to compensate for
-moderate lambda — an undesirable property given that lambda is the
-primary adverse selection signal. The two formulations produce a
-Pearson correlation of 0.923 on the in-sample data, with bar-level
-regime classification agreement of 69.0%, confirming the design
-choice has material consequences for which bars are classified as
-high-regime. Under the multiplicative formulation, 12.1% of bars
-are classified as high-regime versus 43.1% under the additive
-formulation — the multiplicative detector is substantially more
-selective, requiring both elevated price impact and active market
-participation to fire simultaneously.
-
-Rolling standardization ensures the score is always relative to
-recent market conditions rather than the full sample distribution,
-allowing it to adapt to the two distinct activity regimes identified
-in Section 3.3. All rolling estimates use only past data — no
-lookahead bias is introduced.
-
-**Addressing the five sources of elevated lambda:** Two of the five
+**Addressing the five sources of elevated lambda:** One of the five
 non-informed sources of elevated lambda are addressed by TAR
 directly — thin markets and low depth produce low TAR, suppressing
-RegimeScore even when lambda is elevated. Two are addressed by the
-exclusion windows described in Section 4.3 — market stress from
-scheduled macro announcements and contract roll proximity. One
+RegimeScore even when lambda is elevated. Two more are addressed by 
+the exclusion windows described in Section 4.3 — market stress from
+scheduled macro announcements and contract roll proximity. Two
 remains unaddressed as an irreducible limitation of trades-only
 data: market maker inventory pressure and mechanical intraday order
 clustering outside exclusion windows can produce elevated lambda
@@ -217,10 +183,40 @@ prices move consistently in one direction. The two-component
 multiplicative detector avoids both problems while preserving the
 core economic signal.
 
+**Multiplicative combination:** The two components are combined using
+a multiplicative formulation that implements the hierarchical
+structure described above. Each component is first standardized via
+a rolling z-score:
+
+z_lambda_t  = (lambda_t  − μ_lambda)  / σ_lambda
+z_arrival_t = (arrival_t − μ_arrival) / σ_arrival
+
+Each z-score is then mapped to (0, 1) via the logistic function, and
+the two logistic outputs are multiplied:
+
+RegimeScore_t = logistic(z_lambda_t) × logistic(z_arrival_t)
+
+where logistic(x) = 1 / (1 + exp(−x)).
+
+This formulation ensures RegimeScore is high only when both
+components are simultaneously elevated. When lambda is low,
+RegimeScore is low regardless of TAR. When TAR is low, it
+suppresses the lambda signal proportionally, preventing
+misclassification of illiquid or thin-market episodes as
+informed. The multiplicative structure enforces the intended
+hierarchy: lambda provides the adverse selection signal, and
+TAR either confirms or suppresses it.
+
+Rolling standardization ensures the score is always relative to
+recent market conditions rather than the full sample distribution,
+allowing it to adapt to the two distinct activity regimes identified
+in Section 3.3. All rolling estimates use only past data — no
+lookahead bias is introduced.
+
 ### 4.3 Exclusion Windows
 
-Three of the five sources of elevated lambda that do not reflect
-genuine informed trading — post-announcement mechanical flow, MOC
+Two of the five sources of elevated lambda that do not reflect
+genuine informed trading — post-announcement mechanical flow and MOC
 order flow, and contract roll illiquidity — are addressed through
 targeted exclusion windows. RegimeScore_t is set to zero in all
 excluded bars regardless of indicator values.
@@ -319,9 +315,9 @@ regression sample under the multiplicative detector.
 
 **Circularity and estimation bias:** The regime interaction
 specification inherits two layers of circularity from trades-only
-data. At the detector construction level, lambda is derived from
-rolling OLS of price changes on signed order flow — the same
-aggressor-side volume that underlies TFI. At the regression
+data. Firstly, at the detector construction level, lambda is derived 
+from rolling OLS of price changes on signed order flow — the same
+aggressor-side volume that underlies TFI. Secondly, at the regression
 interaction level, high TFI bars mechanically have elevated
 RegimeScore because high signed flow simultaneously elevates lambda
 under the multiplicative formulation, inflating the interaction term
