@@ -146,18 +146,18 @@ flow, estimated from a rolling OLS regression of price changes on
 signed order flow over a 30-bar window updated each minute. High
 lambda indicates market makers are updating quotes aggressively in
 response to order flow — consistent with their inference that the
-flow may be informed. Lambda is the primary signal; all other
+flow may be informed. Lambda is the primary signal; the other
 components serve to qualify its elevated readings.
 
 **Trade arrival rate** measures trades per minute over a 5-minute
 rolling window and functions as a depth confirmation for elevated
-lambda rather than as an independent signal. High arrival rate
-confirms that many market participants are actively transacting,
-ruling out thin markets and low depth as the source of elevated
-lambda. When TAR is low, RegimeScore is suppressed even if lambda
-is elevated, preventing misclassification of illiquid episodes as
-informed. A shorter window than lambda is used to reflect the faster
-response of trading activity to changing market conditions.
+lambda. High arrival rate confirms that many market participants 
+are actively transacting, ruling out thin markets and low depth 
+as the source of elevated lambda. When TAR is low, RegimeScore is 
+suppressed even if lambda is elevated, preventing misclassification 
+of illiquid episodes as informed. A shorter window than lambda is 
+used to reflect the faster response of trading activity to changing 
+market conditions.
 
 **Addressing the five sources of elevated lambda:** One of the five
 non-informed sources of elevated lambda are addressed by TAR
@@ -165,23 +165,11 @@ directly — thin markets and low depth produce low TAR, suppressing
 RegimeScore even when lambda is elevated. Two more are addressed by 
 the exclusion windows described in Section 4.3 — market stress from
 scheduled macro announcements and contract roll proximity. Two
-remains unaddressed as an irreducible limitation of trades-only
-data: market maker inventory pressure and mechanical intraday order
+remain unaddressed as an irreducible limitation of trades-only
+data; market maker inventory pressure and mechanical intraday order
 clustering outside exclusion windows can produce elevated lambda
 that the detector cannot distinguish from genuine informed flow.
 This limitation is acknowledged throughout the paper.
-
-**Design choice — Roll spread exclusion:** The Roll (1984) spread
-estimator was considered and excluded as a third component for two
-reasons. First, Roll is non-orthogonal to lambda: both spike
-simultaneously at the same directional price episodes, making Roll
-redundant rather than independently informative. Second, Roll fails
-precisely in one-sided markets — the high-lambda informed trading
-conditions of greatest theoretical interest — because the bid-ask
-bounce required for the serial covariance estimator disappears when
-prices move consistently in one direction. The two-component
-multiplicative detector avoids both problems while preserving the
-core economic signal.
 
 **Multiplicative combination:** The two components are combined using
 a multiplicative formulation that implements the hierarchical
@@ -213,6 +201,18 @@ allowing it to adapt to the two distinct activity regimes identified
 in Section 3.3. All rolling estimates use only past data — no
 lookahead bias is introduced.
 
+**Design choice — Roll spread exclusion:** The Roll (1984) spread
+estimator was considered and excluded as a third component for two
+reasons. First, Roll is non-orthogonal to lambda: both spike
+simultaneously at the same directional price episodes, making Roll
+redundant rather than independently informative. Second, Roll fails
+precisely in one-sided markets — the high-lambda informed trading
+conditions of greatest theoretical interest — because the bid-ask
+bounce required for the serial covariance estimator disappears when
+prices move consistently in one direction. The two-component
+multiplicative detector avoids both problems while preserving the
+core economic signal.
+
 ### 4.3 Exclusion Windows
 
 Two of the five sources of elevated lambda that do not reflect
@@ -227,7 +227,7 @@ These events drive directional order flow from participants
 responding to the same public information signal rather than private
 information, and their post-announcement windows represent the
 period of greatest mechanical lambda inflation. Pre-announcement
-windows are retained: informed traders with early signal access may
+windows are retained; informed traders with early signal access may
 be active before announcements, and excluding these bars would
 discard potentially genuine informed trading episodes.
 
@@ -242,7 +242,7 @@ contract expiration.
 ### 4.4 Regime Detector Validation
 
 Prior to testing TFI predictability, the regime detector is
-validated through a formal statistical test of its core claim: that
+validated through a formal statistical test of its core claim;
 high-regime bars have a significantly stronger within-bar TFI-return
 relationship than low-regime bars. This is the mechanism the detector
 is designed to identify — elevated adverse selection produces
@@ -329,12 +329,12 @@ consistent with mechanical co-elevation.
 
 Critically, this second-layer bias acts upward on β₃ — it inflates
 the estimate toward H₁, making a positive coefficient easier to
-find, not harder. A null result under this upward bias implies the
-true β₃ is smaller than the estimated value, making the primary
-efficiency finding a conservative bound. The non-confounded label
-applied to Section 5.1 refers specifically to the absence of a
-mechanical relationship between RegimeScore and Return_{t+1} — not
-to the absence of circularity in the interaction term itself, which
+find. A null result under this upward bias implies the true β₃ is 
+smaller than the estimated value, making the primary efficiency 
+finding a conservative bound. The non-confounded label applied to 
+Section 5.1 refers specifically to the absence of a mechanical 
+relationship between RegimeScore and Return_{t+1} — not to the 
+absence of circularity in the interaction term itself, which
 is present in all specifications that use RegimeScore.
 
 ---
@@ -492,7 +492,7 @@ subsided and before close-of-day dynamics begin. This window was
 pre-specified from theory before running any test.
 
 Restricting the primary regression to midday bars produces
-β₃ = 0.000812, z = 1.449, p = 0.147, N = 20,279 — not significant,
+β₃ = 0.000812, z = 1.449, p = 0.147, N = 20,279 — still not significant,
 but with a coefficient 2.2x larger than the full-sample estimate.
 Under pure circularity, the interaction coefficient should collapse
 toward the unconditional TFI slope (β₁ ≈ 0.0006) rather than away
@@ -536,13 +536,13 @@ is at its most stable.
 Two caveats apply. First, the stability threshold was derived from
 the in-sample distribution and is therefore post-hoc — the result
 is a finding but not a pre-registered test. Second, the finding
-does not replicate in the OOS period: lambda window stability does
+does not replicate in the OOS period; lambda window stability does
 not differ materially between the late and early OOS periods (mean
 standard deviation 287.60 vs 279.37 contracts, ratio 1.03x), and
 the late-period OOS significance does not concentrate in
 stable-lambda bars. The stable regime conditions result is therefore
 presented as a genuine finding with an exploratory threshold,
-pointing toward a specific and testable future research direction:
+pointing toward a specific and testable future research direction;
 with limit order book data, a direct orthogonal stability criterion
 (bid-ask spread variance, depth stability, cancellation rate) could
 replace the signed-flow proxy and confirm or deny this finding
@@ -588,15 +588,14 @@ is essentially identical to in-sample (mean 0.229 vs 0.215,
 OOS/IS ratio 1.06x), ruling out structural regime elevation.
 Realized volatility in the OOS period is lower than in-sample
 (mean |return| ratio 0.42x), ruling out volatility-driven lambda
-inflation and making significance harder to achieve rather than
-easier. The OOS TFI distribution is nearly identical to in-sample
-(1.3% vs 1.0% extreme bars), ruling out extreme order flow as a
-mechanical driver. A permutation test — in which OOS forward returns
-are randomly permuted 1,000 times to construct an empirical null
-distribution for β₃ absent any predictability, with the actual OOS
-β₃ then located within this distribution — places the actual OOS β₃
-in the top 0.5% of the null distribution (permutation p = 0.005),
-ruling out random noise.
+inflation and making significance harder to achieve. The OOS TFI distribution is nearly identical to in-sample (1.3% vs 1.0% extreme 
+bars), ruling out extreme order flow as a mechanical driver. A 
+permutation test — in which OOS forward returns are randomly 
+permuted 1,000 times to construct an empirical null distribution for 
+β₃ absent any predictability, with the actual OOS β₃ then located 
+within this distribution — places the actual OOS β₃ in the top 0.5% 
+of the null distribution (permutation p = 0.005), ruling out random 
+noise.
 
 The source of the aggregate OOS significance is identified through
 monthly breakdown and rolling window analysis. January 2026 and
@@ -677,15 +676,13 @@ Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t
              + β₄·(TFI_t × TransitionToHigh_t)
              + β₅·Return_t + β₆·TFI_{t-1} + ε_t
 
-Under the multiplicative detector, the transition finding is
-outright null: sustained β₃ = 0.000143 (p = 0.684), transition
-β₄ = 0.000430 (p = 0.061), across 2,354 transition bars (4.2% of
-sample). The multiplicative formulation classifies far fewer bars
-as high-regime (12.1% vs 43.1% under the additive formulation),
-producing fewer low-to-high crossings and a weaker apparent
-transition effect that does not reach conventional significance.
-Two diagnostics confirm that the specification is mechanically
-inflated and that the null is the correct interpretation.
+The primary and robustness regressions indicate no significant 
+transition effect. The sustained high-regime coefficient is 
+β₃ = 0.000143 (p = 0.684) and the transition coefficient is 
+β₄ = 0.000430 (p = 0.061), across 2,354 transition bars (4.2% 
+of sample). Two diagnostics confirm that the apparent transition 
+effect is mechanically inflated and that the null is the correct 
+interpretation.
 
 First, transition bars are split by the median RegimeScore delta at
 crossing (median = 0.270). Under genuine informed trader timing,
@@ -733,7 +730,7 @@ incorporate regime-conditioned order flow information within one
 1-minute bar. A market maker who misses the within-bar adverse
 selection signal has no opportunity to adjust quotes before the
 price has fully moved. This underscores the importance of real-time
-rather than bar-level regime detection: the signal distinguishing
+rather than bar-level regime detection; the signal distinguishing
 informed from uninformed order flow is present and acting on prices
 within the bar, not across bars.
 
@@ -754,7 +751,7 @@ deviation — the regime-conditioned TFI interaction coefficient is
 full-sample estimate. This provides the first statistically
 confirmed evidence that the regime detector produces a genuine
 forward predictive signal under specific, identifiable market
-conditions. The practical implication is concrete: a market maker
+conditions. The practical implication is concrete; a market maker
 with access to real-time order flow stability diagnostics — computed
 from the same trades-only data used here — can identify windows
 where the regime detector's signal is most reliable and concentrate
@@ -776,8 +773,8 @@ the highest-priority direction for future research.
 Two research directions are motivated directly by the current
 findings and their limitations.
 
-**Direction 1: Orthogonal regime detector with limit order book
-data.** The two layers of circularity documented in this paper —
+**Direction 1: Orthogonal regime detector with limit order book data.** 
+The two layers of circularity documented in this paper —
 at the detector construction level and the regression interaction
 level — are both irreducible with trades-only single-instrument
 data. A regime detector derived from limit order book dynamics
