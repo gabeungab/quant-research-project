@@ -3,29 +3,26 @@
 ## What this project is
 Studying the regime-conditioned price impact of Trade Flow
 Imbalance (TFI) in ES futures. The regime detector is the primary
-contribution — a two-component composite (Kyle's lambda + trade
-arrival rate) that identifies periods of elevated information
-asymmetry in real time from trades-only data. TFI serves two
-explicitly separated roles: (1) a contemporaneous characterization
-of adverse selection amplification, framed as a confounded
-specification sensitivity result (not an empirical finding), and
-(2) a forward return predictability test, which produced a null
-result (β₃ = 0.000203, p = 0.335) — the primary empirical finding,
-interpreted as an efficiency result about information incorporation
-speed in ES futures.
+contribution — a two-component multiplicative composite
+(Kyle's lambda × trade arrival rate) that identifies periods of
+elevated information asymmetry in real time from trades-only data.
+TFI serves two explicitly separated roles: (1) a contemporaneous
+characterization of adverse selection amplification, framed as a
+confounded specification sensitivity result (not an empirical
+finding), and (2) a forward return predictability test, which
+produced a null result (β₃ = 0.000371, p = 0.234) — the primary
+empirical finding, interpreted as an efficiency result about
+information incorporation speed in ES futures.
 
 Key design constraint: with trades-only data, a fully orthogonal
 regime detector is impossible — any detector derived from aggressor-
-side volume shares informational content with TFI. Lambda + TAR is
-the least circular available detector given this constraint. We
-deliberately sacrifice some detection accuracy (per Ahern, 2018,
-the most accurate trades-only detector uses TFI variants directly)
-for research design cleanliness. Two layers of circularity are
-documented: (1) detector construction level — lambda derived from
-the same signed flow inputs as TFI; (2) regression interaction
-level — high TFI bars mechanically have elevated RegimeScore,
-confirmed by monotonic quintile pattern. Both are stated explicitly
-in the paper's limitations section.
+side volume shares informational content with TFI. Lambda + TAR
+multiplicative is the least circular available detector given this
+constraint. Two layers of circularity are documented: (1) detector
+construction level — lambda derived from the same signed flow inputs
+as TFI; (2) regression interaction level — high TFI bars
+mechanically have elevated RegimeScore, confirmed by monotonic
+quintile pattern. Both are stated explicitly in the paper.
 
 Final deliverables:
 - Clean GitHub repository with fully reproducible code
@@ -57,69 +54,74 @@ every result.
 
 formal_analysis.py is fully professionalized and all diagnostic
 tests have been run and interpreted. phase4_findings.md contains
-the complete final record. PAPER.md Sections 3–6 are updated and
-draft-complete. All interpretations are locked.
+the complete final record. PAPER.md Sections 3–8 are updated and
+draft-complete (renumbered: Section 5 = Results, 6 = Robustness,
+7 = Market Maker Implications, 8 = Future Research). Two small
+paragraph fixes to PAPER.md Section 4.2 are pending before commit.
+
+**Detector formulation:** Final multiplicative formulation
+RegimeScore_t = logistic(z_lambda_t) × logistic(z_arrival_t).
+Compared to prior additive formulation: Pearson correlation 0.923,
+bar-level classification agreement 69.0%, high-regime fraction
+12.1% vs 43.1%. Material design change — all final results use
+multiplicative detector.
+
+**Detector validation:** Formal contemporaneous slope test passes
+strongly — high-regime TFI-return slope 2.278x low-regime slope
+(z = 9.496, p < 0.001). Pre-announcement validation infeasible
+with RTH-only data (only 6 observable FOMC windows).
 
 **Phase 4 final results summary:**
 
-Primary regression (T+1): β₃ = 0.000203, p = 0.335 — null.
+Primary regression (T+1): β₃ = 0.000371, p = 0.234 — null.
 ES futures incorporate regime-conditioned TFI within one bar.
-Primary efficiency finding. Non-confounded. β₃ is upward-biased
-by mechanical co-elevation of TFI and RegimeScore (confirmed by
-quintile monotonicity), making the null result a conservative bound.
+Primary efficiency finding. β₃ upward-biased by mechanical
+co-elevation (quintile monotonicity), making null a conservative
+bound.
 
-Contemporaneous (lagged regime spec): β₃ = 0.000425, p = 0.067
-— not significant. Collapse from initial run (β₃ = 0.0015,
-p < 0.001) confirms initial finding was substantially circularity-
-driven. RegimeScore lag-1 autocorrelation = 0.8427 — lagging by
-one bar removes only ~16% of circularity. Residual confounding is
-the dominant explanation for p = 0.067. Market maker calibration
-application not empirically supported.
+Contemporaneous (lagged regime spec): β₃ = 0.000617, p = 0.078
+— not significant. RegimeScore lag-1 autocorrelation = 0.8064.
+Residual confounding dominant explanation. Market maker calibration
+not empirically supported.
 
-Horizon analysis: null at T+5 (p = 0.960) and T+15 (p = 0.709).
-Information incorporation confirmed within one bar.
+Horizon analysis: null at T+5 (p = 0.798) and T+15 (p = 0.833).
 
-Subsample stability: null in May–Sep (p = 0.524) and Oct–Dec
-(p = 0.399). Null result is a structural property, not a sub-period
-artifact.
+Subsample stability: null in May–Sep (p = 0.495) and Oct–Dec
+(p = 0.207). Structural null, not sub-period artifact.
 
-OOS validation (2026 Jan–Mar, N = 14,774): full-period
-β₃ = 0.000239, p = 0.004. Episodic — driven entirely by the final
-two weeks (Feb 23–Mar 6). January (p = 0.412) and February
-(p = 0.209) are individually null. Late-period β₃ = 0.000531,
-p = 0.012; early-period β₃ = 0.000046, p = 0.515. Permutation
-test confirms late-period result is not random noise. Lambda window
-stability does not differ materially between late and early OOS
-(ratio 1.03x). No orthogonal conditioning variable explains the
-late-period significance. In-sample efficiency finding stands.
+OOS validation (2026 Jan–Mar, N = 14,774): β₃ = 0.000371,
+p = 0.006. Episodic — driven by final two weeks (Feb 23–Mar 6).
+January (p = 0.671) and February (p = 0.162) individually null.
+Late-period β₃ = 0.000774, p = 0.022; early β₃ = 0.000066,
+p = 0.559. Permutation test confirms not noise. No orthogonal
+conditioning variable explains it. In-sample finding stands.
 
-Lagged regime conditioning: β₃ = −0.000089, p = 0.677 — null under
-fully predetermined conditioning with zero simultaneity. Cleanest
-possible test.
+Lagged regime conditioning: β₃ = −0.000152, p = 0.634 — null
+under fully predetermined conditioning. Cleanest possible test.
 
-Midday subsample: β₃ = 0.000549, p = 0.162 — not significant but
-2.7x full-sample coefficient. Pre-specified from theory. Circularity
-explanation constrained: coefficient moves away from β₁, not toward
-it.
+Midday subsample: β₃ = 0.000812, p = 0.147 — not significant,
+2.2x full-sample. Pre-specified from theory. Circularity
+explanation constrained (coefficient moves away from β₁).
 
 Stable regime conditions: bottom tercile of lambda window std
-(threshold 211 contracts) produces β₃ = 0.000629, p = 0.074 vs
-full-sample p = 0.335 and unstable p = 0.587. Monotonic gradient
-consistent with detector quality hypothesis. Stable bars concentrate
-in 13–14:xx. Does not replicate OOS. Exploratory only.
+(threshold 211 contracts) produces β₃ = 0.001016, p = 0.033 —
+statistically significant. Full-sample p = 0.234, unstable
+p = 0.664. Monotonic gradient. Stable bars concentrate in
+13–14:xx. Does not replicate OOS. Post-hoc threshold.
+Strongest positive finding in Phase 4.
 
 TFI quintile interaction: no quintile survives Bonferroni (α=0.01).
-T+1 null is not a linearity artifact. Monotonic Q1→Q5 pattern
-confirms second circularity layer at regression interaction level.
+T+1 null not a linearity artifact. Monotonic Q1→Q5 confirms second
+circularity layer.
 
-Regime transition dynamics: transition β₄ = 0.000275, p = 0.018
-(4,376 bars). Retired as primary finding — both diagnostics support
-circularity. Delta magnitude: large-delta β = 0.000414 (6.6x
-small-delta β = 0.000063). Threshold robustness: significant at
-0.4 and 0.5, disappears at 0.6.
+Regime transition dynamics: β₄ = 0.000430, p = 0.061 — outright
+null under multiplicative detector (2,354 bars). Delta magnitude
+ratio 13.4x (large/small). No threshold significant. Null is
+correct interpretation.
 
 **Next phase:** Phase 5 — write PAPER.md Sections 1 (Introduction)
-and 2 (Literature Review). No additional analysis required.
+and 2 (Literature Review). Two pending PAPER.md paragraph fixes
+first (Section 4.2 opening, formulation comparison paragraph).
 
 ---
 
@@ -210,12 +212,13 @@ only empirical observations connected to those concepts.
 **Signal:** TFI_t = (BuyVol_t − SellVol_t) / (BuyVol_t + SellVol_t)
 Computed at 1-minute resolution from aggressor side field.
 
-**Regime score:**
-RegimeScore_t = 1 / (1 + exp(−(z_lambda + z_arrival)))
-Two components only: Kyle's lambda (30-bar rolling OLS) and trade
+**Regime score (multiplicative):**
+RegimeScore_t = logistic(z_lambda_t) × logistic(z_arrival_t)
+Two components: Kyle's lambda (30-bar rolling OLS) and trade
 arrival rate (5-bar rolling). Roll spread removed — non-orthogonal
 to lambda, fails in one-sided markets, redundant with TAR.
 All z-scores rolling, past data only. Set to 0 in exclusion windows.
+High-regime (RegimeScore > 0.5): 12.1% of in-sample bars.
 
 **Exclusion windows:**
 - Final 10 min of session (MOC uninformed flow)
@@ -228,16 +231,15 @@ Return_t = α + β₁·TFI_t + β₂·RegimeScore_{t-1} +
            β₃·(TFI_t × RegimeScore_{t-1}) +
            β₅·TFI_{t-1} + ε_t
 Uses lagged RegimeScore_{t-1}. TFI-Return confounding within the
-bar remains irreducible with trades-only data. Presented as a
-specification sensitivity result only — NOT a primary empirical
-finding. β₃ = 0.000425, p = 0.067 (not significant).
+bar remains irreducible with trades-only data. Specification
+sensitivity result only. β₃ = 0.000617, p = 0.078 (not significant).
 
 **Primary regression:**
 Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t +
                β₃·(TFI_t × RegimeScore_t) +
                β₄·Return_t + β₅·TFI_{t-1} + ε_t
 β₃ is the primary test statistic.
-Final result: β₃ = 0.000203, p = 0.335 — null efficiency finding.
+Final result: β₃ = 0.000371, p = 0.234 — null efficiency finding.
 
 **Key papers:**
 - Kyle (1985) — Econometrica — lambda and informed trading

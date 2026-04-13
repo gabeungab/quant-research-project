@@ -1487,6 +1487,75 @@ None
 ## 2026-04-12
 
 **Session Summary:**
+- Deep review of PAPER.md. Identified and discussed structural
+  issues across Sections 4.2–4.7 and 5–6, agreed on a full
+  set of edits including section renumbering, rewriting 4.2,
+  strengthening 4.4 validation, fixing circularity framing,
+  and repositioning 4.6.5 as the strongest positive finding.
+- Redesigned regime detector from additive to multiplicative
+  formulation. Wrote and inserted code into signal_construction.py
+  and formal_analysis.py (detector comparison diagnostic and
+  both validation tests). Fixed truncation bug in
+  signal_construction.py.
+- Ran full Phase 4 pipeline with new multiplicative detector
+  and interpreted all new results. Dropped pre-announcement
+  validation test 2 as infeasible with RTH-only data.
+- Updated PAPER.md: full section renumbering, all new results,
+  rewritten 4.2 and 4.4, corrected circularity framing,
+  stable regime conditions repositioned as strongest positive
+  finding, transition dynamics updated to outright null.
+- Updated phase4_findings.md with all new results.
+
+**Findings:**
+
+Multiplicative detector is materially different from additive:
+Pearson correlation 0.923, bar-level classification agreement
+69.0%, high-regime fraction 12.1% vs 43.1%. Design choice has
+real consequences for all downstream results.
+
+Validation test 1 passed strongly: high-regime TFI-return slope
+= 0.002717 vs low-regime 0.001193 (2.278x amplification,
+z = 9.496, p < 0.001). Detector correctly identifies periods of
+elevated within-bar price impact.
+
+Primary T+1 null preserved: β₃ = 0.000371, p = 0.234. Efficiency
+finding unchanged under new detector.
+
+Stable regime conditions now significant: β₃ = 0.001016, p = 0.033
+(vs p = 0.074 under additive). This is the strongest positive
+finding in the project. Gradient monotonic: stable p = 0.033,
+full sample p = 0.234, unstable p = 0.664. Post-hoc threshold,
+does not replicate OOS.
+
+Transition dynamics outright null under multiplicative detector:
+transition β₄ = 0.000430, p = 0.061 (vs p = 0.018 under additive).
+2,354 transition bars vs 4,376. Delta magnitude ratio 13.4x
+(large/small). No threshold significant. Null is the correct
+interpretation with no ambiguity.
+
+OOS result: β₃ = 0.000371, p = 0.006. Still episodic — all 7
+significant rolling windows concentrated in Feb 26–Mar 6.
+January p = 0.671, February p = 0.162. Late OOS β₃ = 0.000774,
+p = 0.022. Early OOS β₃ = 0.000066, p = 0.559. Unchanged
+interpretation from additive detector.
+
+Contemporaneous: β₃ = 0.000617, p = 0.078. Not significant.
+Lag-1 autocorrelation = 0.8064 under multiplicative formulation.
+
+**Open questions:**
+None
+
+**Next step:**
+Complete full read-through of Sections 4–8 of PAPER.md and
+consider all remaining observations.
+- Also make both Market Maker Implications and Future Research
+  sections stronger and more in-depth / in-detail.
+
+---
+
+## 2026-04-13
+
+**Session Summary:**
 - 
 
 **Findings:**
