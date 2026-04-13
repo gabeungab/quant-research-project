@@ -2,6 +2,197 @@
 
 ---
 
+**Abstract**
+
+This paper examines whether conditioning Trade Flow Imbalance (TFI)
+on a real-time informed trading regime detector amplifies its
+predictive power for forward returns in E-mini S&P 500 futures. The
+regime detector is a two-component multiplicative composite of
+Kyle's lambda and trade arrival rate, constructed from 58.8 million
+trades across 169 trading days on CME Globex and validated on a
+held-out 46-day out-of-sample period. The primary finding is a null
+result: regime-conditioned TFI does not significantly predict forward
+returns at any horizon from T+1 through T+15 (β₃ = 0.000371,
+p = 0.234), implying that ES futures incorporate regime-conditioned
+order flow information within one 1-minute bar. A key secondary
+finding qualifies this conclusion: restricting the regression to
+bars where the lambda estimation window is most stable produces a
+statistically significant regime-TFI interaction (β₃ = 0.001016,
+p = 0.033) that is 2.7x the full-sample estimate, suggesting the
+detector's signal quality depends critically on estimation
+reliability. A central methodological contribution is the explicit
+documentation of two circularity layers inherent in trades-only
+regime detection and the analysis of their directional effects on
+all estimates. Both layers bias β₃ upward, making the primary null
+result a conservative bound on the true causal effect.
+
+**JEL Classification:** G12, G14, C58
+
+**Keywords:** market microstructure, adverse selection, informed
+trading, order flow imbalance, Kyle's lambda, ES futures, regime
+detection
+
+---
+
+## 1. Introduction
+
+Market makers in high-frequency equity index futures face a
+fundamental adverse selection problem. When a counterparty's order
+flow reflects private information about future price direction,
+market makers who fail to detect it provide liquidity at stale
+quotes and absorb losses from informed traders. Managing this
+exposure requires identifying, in real time, whether the order flow
+arriving in each bar is more likely to be informed or uninformed.
+The theoretical frameworks of Glosten and Milgrom (1985) and Kyle
+(1985) formalize this problem: market makers update quotes in
+proportion to their inference about order flow informativeness, and
+the price impact of a trade — Kyle's lambda — is the empirical
+signature of this updating process. The practical question is
+whether lambda, observed from trades-only data, can be combined
+with other market characteristics to construct a real-time regime
+indicator that reliably identifies elevated adverse selection.
+
+This paper asks whether conditioning Trade Flow Imbalance (TFI) on
+such a regime indicator amplifies its predictive power for
+next-bar forward returns in E-mini S&P 500 (ES) futures. TFI
+measures the normalized directional imbalance between buyer- and
+seller-initiated volume within each 1-minute bar — a signal that
+reflects the net pressure of order flow but mixes informed and
+uninformed activity unconditionally. The regime detector is a
+two-component multiplicative composite of Kyle's lambda and trade
+arrival rate (TAR), constructed from 58.8 million RTH trades across
+169 trading days on CME Globex. The primary test is a regression
+of next-bar log returns on TFI, RegimeScore, and their interaction,
+estimated with Newey-West HAC standard errors on the full in-sample
+period (2025-05-01 through 2025-12-30) and validated on a held-out
+out-of-sample period (2026-01-02 through 2026-03-06).
+
+The primary finding is a null result. Regime-conditioned TFI does
+not significantly predict forward returns at any horizon from T+1
+through T+15 (β₃ = 0.000371, p = 0.234 at T+1), implying that ES
+futures incorporate regime-conditioned order flow information within
+one 1-minute bar and leave no exploitable residual predictability
+at any tested horizon. A key secondary finding qualifies this
+conclusion: when the regime detector's lambda estimation window is
+stable — defined as the bottom tercile of rolling signed-flow
+standard deviation — the regime-TFI interaction is statistically
+significant (β₃ = 0.001016, p = 0.033) and 2.7x the full-sample
+estimate. This suggests the detector's signal quality depends
+critically on estimation reliability, and motivates a confirmatory
+test with an orthogonal limit order book detector as the primary
+direction for future research.
+
+A central methodological challenge in this analysis is that with
+trades-only data, a fully orthogonal regime detector is impossible:
+Kyle's lambda and TFI share aggressor-side signed order flow as a
+common input. This paper explicitly documents two layers of
+circularity — at the detector construction level and at the
+regression interaction level — and analyzes their directional
+effects on all estimates throughout. The circularity biases β₃
+upward toward the alternative hypothesis, making a null result more
+informative: it holds even under estimation conditions that favor
+finding a positive coefficient. This accounting of what the data
+can and cannot identify is a primary methodological contribution
+of the paper.
+
+The remainder of the paper is organized as follows. Section 2
+reviews the relevant literature. Section 3 describes the data and
+sample construction. Section 4 presents the signal construction,
+regime detector design, exclusion windows, detector validation, and
+empirical specification. Section 5 reports the primary results and
+additional tests. Section 6 presents robustness checks. Section 7
+discusses market maker implications. Section 8 outlines two
+directions for future research.
+
+---
+
+## 2. Literature Review
+
+The theoretical foundation of this paper rests on the adverse
+selection frameworks of Kyle (1985) and Glosten and Milgrom (1985).
+Kyle (1985) models a market in which a single informed trader
+submits orders strategically to minimize price impact, and derives
+lambda — the price impact per unit of signed order flow — as the
+equilibrium measure of information asymmetry. Glosten and Milgrom
+(1985) model competitive market makers who update bid and ask quotes
+in response to the probability that any incoming order is informed,
+establishing that the optimal spread is proportional to adverse
+selection risk. Together, these frameworks motivate the regime
+detector design: a period of elevated lambda, confirmed by active
+market participation, is the empirical signature of the informed
+trading conditions both frameworks identify as generating adverse
+selection. The detector is not a loose empirical proxy — it is
+a direct operationalization of the quantities these models define.
+
+The empirical antecedent of TFI is the order flow imbalance (OFI)
+measure of Cont, Kukanov, and Stoikov (2014), who show that OFI
+constructed from limit order book events predicts short-term price
+changes in equity markets. This paper uses a trades-only analog —
+signed volume imbalance at the aggressor side — and replicates the
+finding that unconditional order flow imbalance predicts forward
+returns (β₁ = 0.000637, p < 0.001). The central question of this
+paper is whether regime conditioning amplifies this unconditional
+predictability. It does not — but the stable regime conditions
+analysis identifies the specific circumstances under which a
+statistically detectable amplification does emerge, providing a
+bridge from Cont et al.'s unconditional finding to a conditional
+one that may be accessible with richer data.
+
+The choice of detector components is grounded in Ahern (2018) and
+Dufour and Engle (2000). Ahern (2018) evaluates which trades-only
+proxies for informed trading most accurately identify actual insider
+trading episodes using a unique sample of illegal trades, finding
+that the most accurate proxies — TFI variants and order flow
+autocorrelation — are informationally circular with TFI itself. This
+directly motivates the use of lambda and TAR as the least circular
+available detector: they capture price impact and market activity
+without using TFI's own directional content as an input. Roll (1984)
+was considered as a third component — its serial covariance estimator
+measures bid-ask tightness and could confirm that elevated lambda
+reflects genuine price impact rather than wide spreads — but was
+excluded because it is non-orthogonal to lambda and fails precisely
+in the one-sided markets that represent the highest-lambda informed
+trading episodes of greatest theoretical interest. Dufour and Engle
+(2000) provide direct theoretical grounding for TAR: they show that
+inter-trade duration is informative about information arrival, with
+faster trading associated with informed episodes. This motivates
+including TAR as a real-time proxy for market participation intensity
+and supports its role as a depth confirmation for elevated lambda
+rather than as an independent adverse selection signal.
+
+The use of TAR as a hierarchical check on lambda rather than an
+independent additive component connects to the broader literature
+on market liquidity and information. Elevated lambda in a thin,
+illiquid market reflects structural price impact from low depth
+rather than information asymmetry. By requiring both high lambda
+and high TAR to produce an elevated regime score, the multiplicative
+detector addresses the thin-market failure mode that any
+lambda-only detector inherits. This design is consistent with the
+view in the market microstructure literature, surveyed in O'Hara
+(1995), that informed trading episodes are characterized jointly by
+elevated price impact and active participation — not by price impact
+alone.
+
+This paper contributes to the microstructure literature in three
+ways. First, it introduces a multiplicative regime detector that
+enforces the theoretical hierarchy between lambda and TAR —
+lambda provides the primary adverse selection signal and TAR
+confirms or suppresses it — rather than treating the two components
+as symmetric additive inputs. Second, it provides a systematic
+documentation of two distinct circularity layers in trades-only
+regime detection and analyzes their directional effects on all
+downstream estimates, addressing a methodological gap in the
+empirical literature on informed trading proxies. Third, the stable
+regime conditions finding — that the regime-TFI interaction is
+statistically significant when lambda estimation is most reliable
+— generates a specific, falsifiable prediction for future research
+with limit order book data: an orthogonal LOB-based detector
+operating under stable liquidity conditions should produce
+significant regime-conditioned forward return predictability, or
+confirm that the in-sample finding is circularity-driven.
+
+---
+
 ## 3. Data
 
 ### 3.1 Source and Instrument
@@ -61,7 +252,7 @@ in-sample period.
 Buyer- and seller-initiated trades account for 49.91% and 50.09% of
 volume respectively, with unknown aggressor side comprising a
 negligible 0.000003% of records. Individual trade sizes are highly
-right-skewed: the median is 1 contract and the 75th percentile is
+right-skewed; the median is 1 contract and the 75th percentile is
 3 contracts, while the maximum reaches 1,968 contracts. Daily volume
 was relatively stable at ~1 million contracts per day from May
 through September 2025, becoming more elevated and volatile from
@@ -134,7 +325,7 @@ measure of adverse selection intensity — it captures price impact
 per unit of signed order flow in real time from trades-only data,
 which is precisely the quantity the Glosten-Milgrom and Kyle
 frameworks identify as the signature of informed trading. However,
-high lambda alone is insufficient: it can be elevated for five
+high lambda alone is insufficient; it can be elevated for five
 distinct reasons besides genuine informed trading — thin markets
 or low depth, market stress or sudden uncertainty, market maker
 inventory pressure, mechanical order clustering, and contract roll
@@ -151,25 +342,25 @@ components serve to qualify its elevated readings.
 
 **Trade arrival rate** measures trades per minute over a 5-minute
 rolling window and functions as a depth confirmation for elevated
-lambda. High arrival rate confirms that many market participants 
-are actively transacting, ruling out thin markets and low depth 
-as the source of elevated lambda. When TAR is low, RegimeScore is 
-suppressed even if lambda is elevated, preventing misclassification 
-of illiquid episodes as informed. A shorter window than lambda is 
-used to reflect the faster response of trading activity to changing 
+lambda. High arrival rate confirms that many market participants
+are actively transacting, ruling out thin markets and low depth
+as the source of elevated lambda. When TAR is low, RegimeScore is
+suppressed even if lambda is elevated, preventing misclassification
+of illiquid episodes as informed. A shorter window than lambda is
+used to reflect the faster response of trading activity to changing
 market conditions.
 
 **Addressing the five sources of elevated lambda:** One of the five
-non-informed sources of elevated lambda are addressed by TAR
-directly — thin markets and low depth produce low TAR, suppressing
-RegimeScore even when lambda is elevated. Two more are addressed by 
-the exclusion windows described in Section 4.3 — market stress from
-scheduled macro announcements and contract roll proximity. Two
-remain unaddressed as an irreducible limitation of trades-only
-data; market maker inventory pressure and mechanical intraday order
-clustering outside exclusion windows can produce elevated lambda
-that the detector cannot distinguish from genuine informed flow.
-This limitation is acknowledged throughout the paper.
+non-informed sources is addressed by TAR directly — thin markets
+and low depth produce low TAR, suppressing RegimeScore even when
+lambda is elevated. Two more are addressed by the exclusion windows
+described in Section 4.3 — market stress from scheduled macro
+announcements and contract roll proximity. Two remain unaddressed
+as an irreducible limitation of trades-only data; market maker
+inventory pressure and mechanical intraday order clustering outside
+exclusion windows can produce elevated lambda that the detector
+cannot distinguish from genuine informed flow. This limitation is
+acknowledged throughout the paper.
 
 **Multiplicative combination:** The two components are combined using
 a multiplicative formulation that implements the hierarchical
@@ -192,7 +383,7 @@ RegimeScore is low regardless of TAR. When TAR is low, it
 suppresses the lambda signal proportionally, preventing
 misclassification of illiquid or thin-market episodes as
 informed. The multiplicative structure enforces the intended
-hierarchy: lambda provides the adverse selection signal, and
+hierarchy; lambda provides the adverse selection signal, and
 TAR either confirms or suppresses it.
 
 Rolling standardization ensures the score is always relative to
@@ -203,7 +394,7 @@ lookahead bias is introduced.
 
 **Design choice — Roll spread exclusion:** The Roll (1984) spread
 estimator was considered and excluded as a third component for two
-reasons. First, Roll is non-orthogonal to lambda: both spike
+reasons. First, Roll is non-orthogonal to lambda; both spike
 simultaneously at the same directional price episodes, making Roll
 redundant rather than independently informative. Second, Roll fails
 precisely in one-sided markets — the high-lambda informed trading
@@ -212,6 +403,14 @@ bounce required for the serial covariance estimator disappears when
 prices move consistently in one direction. The two-component
 multiplicative detector avoids both problems while preserving the
 core economic signal.
+
+**A fundamental constraint of this design** is that lambda and TFI
+share a common input; both are derived from aggressor-side signed
+order flow. Any regime detector constructed from trades-only data
+inherits this circularity at the construction level. The
+implications for all downstream tests — including the forward return
+predictability tests in Sections 5.1 through 5.7 — are discussed
+in Section 4.5.
 
 ### 4.3 Exclusion Windows
 
@@ -262,18 +461,35 @@ where HighRegime_t = 1 if RegimeScore_t > 0.5.
 The interaction coefficient β₃ = 0.001525 (z = 9.496, p < 0.001).
 The within-bar TFI-return slope is 0.001193 in low-regime bars and
 0.002717 in high-regime bars — a 2.278x amplification that is
-strongly statistically significant. The detector correctly and
-reliably identifies periods of elevated within-bar price impact.
+strongly statistically significant. This confirms that the detector
+reliably identifies periods in which order flow has disproportionately
+larger within-bar price impact, which is the direct empirical
+implication of the Kyle (1985) adverse selection framework.
 
-This test uses contemporaneous RegimeScore_t, so TFI-Return
-confounding within bar t is present and acknowledged. It is a
-directional sanity check that confirms the detector is measuring
-what it claims to measure, not a causal test.
+The amplification figure is a conditional association under
+confounded conditions, not a causal estimate; TFI and Return_t share
+the same bar's trades, so the confounding present in all
+contemporaneous TFI-return regressions contributes to β₃. However,
+confounding affects both the high-regime and low-regime slope
+equally through β₁ — the unconditional TFI-return relationship.
+The interaction term β₃ specifically measures the additional
+TFI-return slope in high-regime bars relative to low-regime bars,
+and this differential amplification cannot be explained by
+confounding alone. The validation test therefore provides
+directional confirmation that the detector is working as intended,
+not a causal estimate of adverse selection magnitude.
+
+This test uses contemporaneous RegimeScore_t deliberately; the
+validation asks whether the current bar's regime state is associated
+with stronger within-bar price impact in that same bar. Using lagged
+RegimeScore would instead test whether the prior bar's regime state
+predicts the current bar's TFI-return relationship — a weaker and
+less direct test of the detector's real-time function.
 
 A pre-announcement validation was considered — testing whether
 RegimeScore is elevated in the 30-minute window before macro
 announcements, when informed traders with early signal access should
-be active. This test is infeasible with RTH-only data: CPI and NFP
+be active. This test is infeasible with RTH-only data; CPI and NFP
 releases occur at 8:30 AM before market open, leaving only 6
 observable FOMC pre-announcement windows in the in-sample period —
 an insufficient sample for a meaningful test. The validation test
@@ -295,9 +511,9 @@ Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t
 
 β₁ captures the unconditional TFI effect when RegimeScore = 0.
 β₂ captures any return level difference across regime states
-independent of TFI. β₃ is the primary coefficient of interest: the
+independent of TFI. β₃ is the primary coefficient of interest; the
 null hypothesis H₀ is β₃ = 0 (the regime does not amplify TFI's
-forward predictive power) against H₁: β₃ > 0 (the regime
+forward predictive power) against H₁ - β₃ > 0 (the regime
 amplifies TFI's predictive power). β₄ and β₅ control for return
 autocorrelation and TFI persistence. All regressions use Newey-West
 HAC standard errors with maxlags=5, correcting for serial
@@ -313,29 +529,28 @@ bar of each day has no observed T+1 return within the same session).
 High-regime bars (RegimeScore > 0.5) account for 12.1% of the
 regression sample under the multiplicative detector.
 
-**Circularity and estimation bias:** The regime interaction
-specification inherits two layers of circularity from trades-only
-data. Firstly, at the detector construction level, lambda is derived 
-from rolling OLS of price changes on signed order flow — the same
-aggressor-side volume that underlies TFI. Secondly, at the regression
-interaction level, high TFI bars mechanically have elevated
-RegimeScore because high signed flow simultaneously elevates lambda
-under the multiplicative formulation, inflating the interaction term
-TFI × RegimeScore. This second layer is confirmed by the monotonic
-quintile pattern documented in Section 5.4: coefficients increase
-monotonically from Q1 through Q5, inconsistent with genuine informed
-trading concentration in moderate quintiles (Kyle, 1985) and
-consistent with mechanical co-elevation.
+**Circularity and estimation bias:** As noted in Section 4.2, lambda
+and TFI share aggressor-side signed order flow as a common input —
+the first layer of circularity, irreducible with trades-only data.
+A second layer operates at the regression interaction level; high
+TFI bars mechanically have elevated RegimeScore because high signed
+flow simultaneously elevates lambda under the multiplicative
+formulation, inflating the interaction term TFI × RegimeScore. This
+second layer is confirmed by the monotonic quintile pattern
+documented in Section 5.4; coefficients increase monotonically from
+Q1 through Q5, inconsistent with genuine informed trading
+concentration in moderate quintiles (Kyle, 1985) and consistent
+with mechanical co-elevation.
 
-Critically, this second-layer bias acts upward on β₃ — it inflates
-the estimate toward H₁, making a positive coefficient easier to
-find. A null result under this upward bias implies the true β₃ is 
-smaller than the estimated value, making the primary efficiency 
-finding a conservative bound. The non-confounded label applied to 
-Section 5.1 refers specifically to the absence of a mechanical 
-relationship between RegimeScore and Return_{t+1} — not to the 
-absence of circularity in the interaction term itself, which
-is present in all specifications that use RegimeScore.
+Both layers act to bias β₃ upward — inflating the estimate toward
+H₁, making a positive coefficient easier to find. A null result
+under this upward bias implies the true β₃ is smaller than the
+estimated value, making the primary efficiency finding a
+conservative bound. The non-confounded label applied to Section 5.1
+refers specifically to the absence of a mechanical relationship
+between RegimeScore and Return_{t+1} — not to the absence of
+circularity in the interaction term itself, which is present in
+all specifications that use RegimeScore.
 
 ---
 
@@ -346,7 +561,7 @@ is present in all specifications that use RegimeScore.
 The primary test asks whether regime-conditioned TFI predicts
 returns at the one-bar horizon. Return_{t+1} is unknown when TFI_t
 and RegimeScore_t are observed. RegimeScore_t is contemporaneous
-with TFI_t but fully predetermined relative to Return_{t+1}: the
+with TFI_t but fully predetermined relative to Return_{t+1}; the
 next bar's return is not in lambda's estimation window and is not
 known when the signal is recorded. This regression is non-confounded
 in the sense defined in Section 4.5.
@@ -392,7 +607,7 @@ Return_t = α + β₁·TFI_t + β₂·RegimeScore_{t-1}
          + β₃·(TFI_t × RegimeScore_{t-1})
          + β₅·TFI_{t-1} + ε_t
 
-A residual confounding channel remains irreducible: TFI_t and
+A residual confounding channel remains irreducible; TFI_t and
 Return_t are both constructed from bar t's trades, making their
 relationship partially mechanical with trades-only data. This
 regression is a specification sensitivity result — not a predictive
@@ -471,7 +686,7 @@ consequence of imposing linearity on the regime-TFI relationship.
 The monotonic pattern — coefficients increasing from Q1 through Q5
 — is inconsistent with the Kyle (1985) prediction of hump-shaped
 concentration in moderate quintiles and is more consistent with
-mechanical co-elevation: higher absolute TFI implies higher signed
+mechanical co-elevation; higher absolute TFI implies higher signed
 order flow, which simultaneously elevates lambda and therefore
 RegimeScore under the multiplicative formulation, inflating the
 interaction term in high-TFI bars. This confirms the second layer
@@ -492,14 +707,15 @@ subsided and before close-of-day dynamics begin. This window was
 pre-specified from theory before running any test.
 
 Restricting the primary regression to midday bars produces
-β₃ = 0.000812, z = 1.449, p = 0.147, N = 20,279 — still not significant,
-but with a coefficient 2.2x larger than the full-sample estimate.
-Under pure circularity, the interaction coefficient should collapse
-toward the unconditional TFI slope (β₁ ≈ 0.0006) rather than away
-from it. The midday β₃ = 0.000812 moves in the opposite direction,
-which is more consistent with genuine signal diluted by open and
-close noise in the full-sample regression. Both interpretations
-remain possible; neither is confirmed at conventional significance.
+β₃ = 0.000812, z = 1.449, p = 0.147, N = 20,279 — still not
+significant, but with a coefficient 2.2x larger than the full-sample
+estimate. Under pure circularity, the interaction coefficient should
+collapse toward the unconditional TFI slope (β₁ ≈ 0.0006) rather
+than away from it. The midday β₃ = 0.000812 moves in the opposite
+direction, which is more consistent with genuine signal diluted by
+open and close noise in the full-sample regression. Both
+interpretations remain possible; neither is confirmed at conventional
+significance.
 
 A more direct proxy for detector quality is the rolling standard
 deviation of signed order flow within the 30-bar lambda estimation
@@ -535,18 +751,27 @@ is at its most stable.
 
 Two caveats apply. First, the stability threshold was derived from
 the in-sample distribution and is therefore post-hoc — the result
-is a finding but not a pre-registered test. Second, the finding
-does not replicate in the OOS period; lambda window stability does
-not differ materially between the late and early OOS periods (mean
-standard deviation 287.60 vs 279.37 contracts, ratio 1.03x), and
-the late-period OOS significance does not concentrate in
-stable-lambda bars. The stable regime conditions result is therefore
-presented as a genuine finding with an exploratory threshold,
-pointing toward a specific and testable future research direction;
-with limit order book data, a direct orthogonal stability criterion
-(bid-ask spread variance, depth stability, cancellation rate) could
-replace the signed-flow proxy and confirm or deny this finding
-confirmatorily.
+is a finding but not a pre-registered test. Second, the stable
+conditions gradient does not generalize to the OOS period; lambda
+window stability does not predict OOS significance in the same way
+it predicts in-sample β₃. Within the OOS period, late-period
+significance concentrates in unstable rather than stable lambda
+bars, suggesting the late OOS episode reflects a different mechanism
+than the in-sample stable conditions gradient. The finding is
+therefore in-sample only, and its generalizability to other market
+environments or time periods is unknown.
+
+The stable regime conditions result is presented as a genuine
+in-sample finding that motivates a specific future research
+direction; with limit order book data, a direct orthogonal stability
+criterion (bid-ask spread variance, depth stability, cancellation
+rate) could replace the signed-flow proxy and test whether the
+finding persists when circularity is removed. Whether removing
+circularity would strengthen, weaken, or eliminate the finding
+cannot be determined from the current data — the in-sample β₃ under
+stable conditions reflects some combination of genuine regime-
+conditioned predictability and residual mechanical co-elevation, and
+these cannot be separated with trades-only data.
 
 ### 5.6 Subsample Stability
 
@@ -588,13 +813,14 @@ is essentially identical to in-sample (mean 0.229 vs 0.215,
 OOS/IS ratio 1.06x), ruling out structural regime elevation.
 Realized volatility in the OOS period is lower than in-sample
 (mean |return| ratio 0.42x), ruling out volatility-driven lambda
-inflation and making significance harder to achieve. The OOS TFI distribution is nearly identical to in-sample (1.3% vs 1.0% extreme 
-bars), ruling out extreme order flow as a mechanical driver. A 
-permutation test — in which OOS forward returns are randomly 
-permuted 1,000 times to construct an empirical null distribution for 
-β₃ absent any predictability, with the actual OOS β₃ then located 
-within this distribution — places the actual OOS β₃ in the top 0.5% 
-of the null distribution (permutation p = 0.005), ruling out random 
+inflation and making significance harder to achieve. The OOS TFI
+distribution is nearly identical to in-sample (1.3% vs 1.0% extreme
+bars), ruling out extreme order flow as a mechanical driver. A
+permutation test — in which OOS forward returns are randomly
+permuted 1,000 times to construct an empirical null distribution for
+β₃ absent any predictability, with the actual OOS β₃ then located
+within this distribution — places the actual OOS β₃ in the top 0.5%
+of the null distribution (permutation p = 0.005), ruling out random
 noise.
 
 The source of the aggregate OOS significance is identified through
@@ -616,16 +842,16 @@ period (February 23 through March 6, N = 3,290) yields:
 
 The late OOS period had approximately 2x the realized volatility of
 the early period. Whether this reflects a specific macro environment
-in late February through early March 2026 or a more general condition
-under which the regime detector produces genuine signal cannot be
-determined from approximately 10 trading days of data — a sample
-too small to characterize the prevailing conditions as a replicable
-regime, separate a genuine market-condition effect from statistical
-noise, or confirm that any similar future period would produce the
-same result. Lambda window stability does not differ materially
-between the late and early OOS periods (mean standard deviation
-287.60 vs 279.37 contracts, ratio 1.03x), ruling out more stable
-estimation conditions as the explanation.
+in late February through early March 2026 or a more general
+condition under which the regime detector produces genuine signal
+cannot be determined from approximately 10 trading days of data —
+a sample too small to characterize the prevailing conditions as a
+replicable regime, separate a genuine market-condition effect from
+statistical noise, or confirm that any similar future period would
+produce the same result. Lambda window stability does not differ
+materially between the late and early OOS periods (mean standard
+deviation 287.60 vs 279.37 contracts, ratio 1.03x), ruling out
+more stable estimation conditions as the explanation.
 
 The OOS result is an episodic finding. The aggregate significance
 is driven by a specific two-week episode of elevated realized
@@ -657,7 +883,7 @@ The null result is unambiguous under this specification, implying
 that prior-bar regime information has no carry-forward predictive
 value for next-bar returns and that regime-conditioned adverse
 selection resolves entirely within one bar. This result strengthens
-the efficiency finding: the primary null holds under the most
+the efficiency finding; the primary null holds under the most
 stringent possible predetermined conditioning, with zero
 simultaneity between any variable in the regression.
 
@@ -676,13 +902,12 @@ Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t
              + β₄·(TFI_t × TransitionToHigh_t)
              + β₅·Return_t + β₆·TFI_{t-1} + ε_t
 
-The primary and robustness regressions indicate no significant 
-transition effect. The sustained high-regime coefficient is 
-β₃ = 0.000143 (p = 0.684) and the transition coefficient is 
-β₄ = 0.000430 (p = 0.061), across 2,354 transition bars (4.2% 
-of sample). Two diagnostics confirm that the apparent transition 
-effect is mechanically inflated and that the null is the correct 
-interpretation.
+The sustained high-regime coefficient is β₃ = 0.000143 (p = 0.684)
+and the transition coefficient is β₄ = 0.000430 (p = 0.061), across
+2,354 transition bars (4.2% of sample). The transition effect does
+not reach conventional significance. Two diagnostics confirm that
+the apparent transition effect is mechanically inflated and that
+the null is the correct interpretation.
 
 First, transition bars are split by the median RegimeScore delta at
 crossing (median = 0.270). Under genuine informed trader timing,
@@ -748,23 +973,25 @@ in Section 5.5. When the lambda estimation window is stable —
 defined as the bottom tercile of rolling signed-flow standard
 deviation — the regime-conditioned TFI interaction coefficient is
 β₃ = 0.001016 (p = 0.033), statistically significant and 2.7x the
-full-sample estimate. This provides the first statistically
-confirmed evidence that the regime detector produces a genuine
-forward predictive signal under specific, identifiable market
-conditions. The practical implication is concrete; a market maker
-with access to real-time order flow stability diagnostics — computed
-from the same trades-only data used here — can identify windows
-where the regime detector's signal is most reliable and concentrate
-adverse selection management during these periods.
+full-sample estimate. This provides in-sample statistical evidence
+that the regime detector produces stronger forward predictive signal
+under specific, identifiable estimation conditions. The practical
+implication is directional; a market maker with access to real-time
+order flow stability diagnostics — computed from the same trades-only
+data used here — can identify windows where the regime detector's
+signal is most reliable and concentrate adverse selection management
+during these periods.
 
-The stability metric used here (rolling signed-flow standard
-deviation) remains partially circular with the regime detector.
-With limit order book data, the stability proxy could be replaced
-with a direct, orthogonal measure of estimation quality — bid-ask
-spread stability, depth constancy, cancellation rate — providing a
-less circular and more precise conditioning variable for real-time
-quote adjustment. The current finding motivates this extension as
-the highest-priority direction for future research.
+Two important qualifications apply. First, the stable regime
+conditions finding is in-sample only and does not replicate in the
+OOS period. Second, the stability metric used here (rolling
+signed-flow standard deviation) remains partially circular with the
+regime detector. Whether removing this circularity — by replacing
+the signed-flow proxy with a direct, orthogonal measure such as
+bid-ask spread stability, depth constancy, or cancellation rate —
+would strengthen, weaken, or eliminate the finding cannot be
+determined from the current data. The finding motivates further
+investigation rather than immediate practical application.
 
 ---
 
@@ -773,8 +1000,8 @@ the highest-priority direction for future research.
 Two research directions are motivated directly by the current
 findings and their limitations.
 
-**Direction 1: Orthogonal regime detector with limit order book data.** 
-The two layers of circularity documented in this paper —
+**Direction 1: Orthogonal regime detector with limit order book
+data.** The two layers of circularity documented in this paper —
 at the detector construction level and the regression interaction
 level — are both irreducible with trades-only single-instrument
 data. A regime detector derived from limit order book dynamics
@@ -783,16 +1010,17 @@ ratio) would share no informational content with TFI and would
 permit a genuinely non-confounded test of the regime-conditioned
 forward predictability hypothesis. The stable regime conditions
 result (β₃ = 0.001016, p = 0.033 under stable estimation
-conditions) generates a specific testable prediction: an LOB-based
-regime detector operating under stable liquidity conditions should
-produce significant β₃ in the primary T+1 regression. The
-stable-condition stability metric provides a natural bridge — the
-same concept of estimation window reliability applies to an
-LOB-based detector, where stable bid-ask spreads and depth profiles
-would serve as the orthogonal analog to stable signed-flow variance.
-Two sub-questions follow from confirmation of this hypothesis:
-does the effect persist at sub-minute resolution, and does it
-survive two-sided transaction costs?
+conditions) motivates this direction but does not predict its
+outcome; the in-sample finding reflects some combination of genuine
+signal and residual mechanical co-elevation that cannot be separated
+with trades-only data. An LOB-based detector with an orthogonal
+stability criterion could determine whether the stable conditions
+effect strengthens, weakens, or disappears when circularity is
+removed — and a null result under an orthogonal detector would
+itself be an important finding, confirming that the in-sample
+result was circularity-driven. Two sub-questions follow only if
+the effect survives - does it persist at sub-minute resolution, and
+does it survive two-sided transaction costs?
 
 **Direction 2: p% intra-bar amplification framework.** If a future
 study finds significant contemporaneous regime amplification with
@@ -813,18 +1041,22 @@ contemporaneous finding.
 
 ## References
 
+Ahern, K. R. (2018). Do proxies for informed trading measure
+informed trading? Evidence from illegal insider trades.
+*Review of Asset Pricing Studies*, 10(3), 397–440.
+
 Cont, R., Kukanov, A., and Stoikov, S. (2014). The price impact
 of order book events. *Journal of Financial Econometrics*,
 12(1), 47–88.
 
-Dufour, A. and Engle, R. (2000). Time and the price impact of a
-trade. *Journal of Finance*, 55(6), 2467–2498.
+Dufour, A. and Engle, R. F. (2000). Time and the price impact
+of a trade. *Journal of Finance*, 55(6), 2467–2498.
 
-Glosten, L. and Milgrom, P. (1985). Bid, ask and transaction
-prices in a specialist market with heterogeneously informed
-traders. *Journal of Financial Economics*, 14(1), 71–100.
+Glosten, L. R. and Milgrom, P. R. (1985). Bid, ask and
+transaction prices in a specialist market with heterogeneously
+informed traders. *Journal of Financial Economics*, 14(1), 71–100.
 
-Kyle, A. (1985). Continuous auctions and insider trading.
+Kyle, A. S. (1985). Continuous auctions and insider trading.
 *Econometrica*, 53(6), 1315–1335.
 
 Roll, R. (1984). A simple implicit measure of the effective
