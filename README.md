@@ -149,5 +149,5 @@ Robustness, Market Maker Implications, Future Research) are complete.
 
 ## Author
 
-Gabriel Ungab — Georgia Tech, Mathematics (Probability & Statistics), 
-Class of 2029. Targeting quantitative research and trading roles.
+Gabriel Ungab — Georgia Tech, Mathematics (Probability & Statistics), Class of 2029. 
+Targeting quantitative research and trading roles.
