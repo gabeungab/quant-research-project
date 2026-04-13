@@ -44,84 +44,67 @@ every result.
 - Phase 2: Research question selection and literature review
 - Phase 3: Exploratory analysis of chosen phenomenon
 - Phase 4: Formal statistical analysis, in/out-of-sample testing
-- Phase 5: Paper writing — Sections 1 and 2 (Introduction and
-  Literature Review)
-- Phase 6: Code polish and final repository cleanup
+- Phase 5: Paper writing — complete. All sections written,
+  abstract added, references finalized.
+- Phase 6: Code polish and final LaTeX/PDF production — IN PROGRESS
 
 ## Current status
 
-**Phase 4: COMPLETE. All findings finalized.**
+**Phases 1–5: COMPLETE.**
 
-formal_analysis.py is fully professionalized and all diagnostic
-tests have been run and interpreted. phase4_findings.md contains
-the complete final record. PAPER.md Sections 3–8 are updated and
-draft-complete (renumbered: Section 5 = Results, 6 = Robustness,
-7 = Market Maker Implications, 8 = Future Research). Two small
-paragraph fixes to PAPER.md Section 4.2 are pending before commit.
+PAPER.md is fully drafted — all 8 sections, abstract, and
+references complete. README.md is written. All Phase 4 findings
+are finalized and locked.
 
-**Detector formulation:** Final multiplicative formulation
-RegimeScore_t = logistic(z_lambda_t) × logistic(z_arrival_t).
-Compared to prior additive formulation: Pearson correlation 0.923,
-bar-level classification agreement 69.0%, high-regime fraction
-12.1% vs 43.1%. Material design change — all final results use
-multiplicative detector.
+**Phase 6: IN PROGRESS.**
 
-**Detector validation:** Formal contemporaneous slope test passes
-strongly — high-regime TFI-return slope 2.278x low-regime slope
-(z = 9.496, p < 0.001). Pre-announcement validation infeasible
-with RTH-only data (only 6 observable FOMC windows).
+Remaining tasks:
+1. Code polish pass — signal_construction.py and formal_analysis.py
+   (deep), plot_signals.py, test_load.py, test_signals.py (light)
+2. LaTeX conversion with figures, formatted tables, math environments
+3. Final PDF production
 
-**Phase 4 final results summary:**
+## Final results summary
 
 Primary regression (T+1): β₃ = 0.000371, p = 0.234 — null.
-ES futures incorporate regime-conditioned TFI within one bar.
 Primary efficiency finding. β₃ upward-biased by mechanical
 co-elevation (quintile monotonicity), making null a conservative
 bound.
 
 Contemporaneous (lagged regime spec): β₃ = 0.000617, p = 0.078
 — not significant. RegimeScore lag-1 autocorrelation = 0.8064.
-Residual confounding dominant explanation. Market maker calibration
-not empirically supported.
+Residual confounding dominant. Market maker calibration not
+empirically supported.
 
 Horizon analysis: null at T+5 (p = 0.798) and T+15 (p = 0.833).
 
 Subsample stability: null in May–Sep (p = 0.495) and Oct–Dec
-(p = 0.207). Structural null, not sub-period artifact.
+(p = 0.207). Structural null.
 
 OOS validation (2026 Jan–Mar, N = 14,774): β₃ = 0.000371,
 p = 0.006. Episodic — driven by final two weeks (Feb 23–Mar 6).
 January (p = 0.671) and February (p = 0.162) individually null.
-Late-period β₃ = 0.000774, p = 0.022; early β₃ = 0.000066,
-p = 0.559. Permutation test confirms not noise. No orthogonal
-conditioning variable explains it. In-sample finding stands.
+Late-period β₃ = 0.000774, p = 0.022. No orthogonal conditioning
+variable explains it. In-sample finding stands.
 
-Lagged regime conditioning: β₃ = −0.000152, p = 0.634 — null
-under fully predetermined conditioning. Cleanest possible test.
+Lagged regime conditioning: β₃ = −0.000152, p = 0.634 — null.
+Cleanest possible test.
 
 Midday subsample: β₃ = 0.000812, p = 0.147 — not significant,
-2.2x full-sample. Pre-specified from theory. Circularity
-explanation constrained (coefficient moves away from β₁).
+2.2x full-sample. Pre-specified from theory.
 
-Stable regime conditions: bottom tercile of lambda window std
-(threshold 211 contracts) produces β₃ = 0.001016, p = 0.033 —
-statistically significant. Full-sample p = 0.234, unstable
-p = 0.664. Monotonic gradient. Stable bars concentrate in
-13–14:xx. Does not replicate OOS. Post-hoc threshold.
-Strongest positive finding in Phase 4.
+Stable regime conditions: β₃ = 0.001016, p = 0.033 —
+statistically significant. Strongest positive finding. Post-hoc
+threshold (211 contracts lambda window std, bottom tercile).
+Does not replicate OOS. Motivates LOB-based future research.
 
 TFI quintile interaction: no quintile survives Bonferroni (α=0.01).
 T+1 null not a linearity artifact. Monotonic Q1→Q5 confirms second
 circularity layer.
 
-Regime transition dynamics: β₄ = 0.000430, p = 0.061 — outright
-null under multiplicative detector (2,354 bars). Delta magnitude
-ratio 13.4x (large/small). No threshold significant. Null is
-correct interpretation.
-
-**Next phase:** Phase 5 — write PAPER.md Sections 1 (Introduction)
-and 2 (Literature Review). Two pending PAPER.md paragraph fixes
-first (Section 4.2 opening, formulation comparison paragraph).
+Regime transition dynamics: β₄ = 0.000430, p = 0.061 — null.
+Delta magnitude ratio 13.4x (large/small). No threshold significant.
+Circularity confirmed as explanation.
 
 ---
 
@@ -131,11 +114,11 @@ quant-research-project/
     /notebooks   — exploratory Jupyter notebooks (not started)
     /src         — clean reusable Python modules
         data_loader.py         — data loading, cleaning, stats, plotting
-        formal_analysis.py     — Phase 4 formal regression analysis
-        plot_signals.py        — Phase 3 component plots
+        formal_analysis.py     — Phase 4 formal regression pipeline
+        plot_signals.py        — Phase 3 signal component plots
         signal_construction.py — signal and regime score functions
-        test_load.py           — Phase 1 data loading and stats checks
-        test_signals.py        — sanity checks for signal outputs
+        test_load.py           — Phase 1 data loading checks
+        test_signals.py        — signal output sanity checks
     /results
         /phase1              — Phase 1 outputs
             daily_stats.csv
@@ -167,10 +150,11 @@ quant-research-project/
             key_coefficients.csv
             transaction_cost_analysis.txt
     /paper       — working paper and research documents
-        PAPER.md              — formal working paper draft
+        PAPER.md              — complete working paper draft
         phase2_development.md — Phase 2 research development
         phase4_findings.md    — Phase 4 complete findings record
-    JOURNAL.md   — running research log (dated session entries)
+    README.md    — project overview for GitHub
+    JOURNAL.md   — chronological research session log
     NOTES.md     — general technical concept reference
     CLAUDE.md    — this file
 
@@ -194,12 +178,11 @@ that belongs in the final research paper. Language is formal
 and calibrated for graduate-level quants and quant recruiters.
 Connects findings to known concepts without explaining them.
 Every claim is supported by a number from the analysis.
-Sections added incrementally as phases complete.
 
 phase4_findings.md — complete internal record of all Phase 4
 test results, interpretations, diagnostic outputs, and design
-decisions. More detailed than PAPER.md. Used as the source of
-truth for paper writing.
+decisions. More detailed than PAPER.md. Source of truth for
+paper writing.
 
 The distinction: if a concept applies to any project, it goes
 in NOTES. If it is specific to this dataset and analysis, it
@@ -231,8 +214,8 @@ Return_t = α + β₁·TFI_t + β₂·RegimeScore_{t-1} +
            β₃·(TFI_t × RegimeScore_{t-1}) +
            β₅·TFI_{t-1} + ε_t
 Uses lagged RegimeScore_{t-1}. TFI-Return confounding within the
-bar remains irreducible with trades-only data. Specification
-sensitivity result only. β₃ = 0.000617, p = 0.078 (not significant).
+bar remains irreducible. Specification sensitivity result only.
+β₃ = 0.000617, p = 0.078 (not significant).
 
 **Primary regression:**
 Return_{t+1} = α + β₁·TFI_t + β₂·RegimeScore_t +
@@ -245,12 +228,12 @@ Final result: β₃ = 0.000371, p = 0.234 — null efficiency finding.
 - Kyle (1985) — Econometrica — lambda and informed trading
 - Glosten and Milgrom (1985) — JFE — adverse selection framework
 - Cont, Kukanov, Stoikov (2014) — JFEC — OFI predicting returns
-- Roll (1984) — JF — implicit spread estimator (removed from detector)
-- Easley, Lopez de Prado, O'Hara (2012) — RFS — VPIN
-- Ahern (2018) — NBER — informed trading proxies; order imbalance
-  and flow autocorrelation most accurate but circular with TFI
+- Ahern (2018) — Rev. Asset Pricing Studies — informed trading
+  proxies; most accurate proxies are circular with TFI
 - Dufour and Engle (2000) — JF — inter-trade duration and
-  informed trading; theoretical basis for TAR as regime component
+  informed trading; theoretical basis for TAR
+- Roll (1984) — JF — implicit spread estimator (considered,
+  excluded — non-orthogonal to lambda, fails in one-sided markets)
 
 ## Data
 - Source: Databento, GLBX.MDP3, Trades schema

@@ -1556,6 +1556,47 @@ consider all remaining observations.
 ## 2026-04-13
 
 **Session Summary:**
+- Completed full read-through and final edits to PAPER.md:
+  applied Section 4.2 paragraph fixes, updated references
+  section, prepended Sections 1 and 2, added abstract.
+- Discussed and agreed on remaining project steps: code polish
+  pass, LaTeX conversion with figures, final PDF.
+- Stepped back to assess project overall — discussed what is
+  genuinely novel vs. logically following, and received honest
+  rating of strengths and weaknesses.
+- Planned and wrote README.md.
+- Planned and wrote Sections 1 and 2 of PAPER.md.
+- Wrote abstract (212 words, kept full length to preserve all
+  central ideas).
+
+**Findings:**
+- No new empirical findings this session. All Phase 4 findings
+  finalized in previous sessions.
+- Project assessment: methodology and circularity documentation
+  are the strongest attributes. Stable regime conditions finding
+  (p = 0.033) and multiplicative detector formulation are the
+  most original contributions. Primary null result is well-
+  powered and conservatively framed. Main weakness is data
+  limitation — trades-only circularity constrains all positive
+  claims.
+
+**Open questions:**
+None
+
+**Next step:**
+1. Code polish pass — signal_construction.py and
+   formal_analysis.py (deep); plot_signals.py, test_load.py,
+   and test_signals.py (light).
+2. Update GitHub repository — add description and topic tags.
+3. Write final paper in LaTeX with figures, formatted tables,
+   and proper math environments.
+4. Produce final PDF.
+
+---
+
+## 2026-04-14
+
+**Session Summary:**
 - 
 
 **Findings:**
