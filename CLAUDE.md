@@ -25,44 +25,41 @@ mechanically have elevated RegimeScore, confirmed by monotonic
 quintile pattern. Both are stated explicitly in the paper.
 
 Final deliverables:
-- Clean GitHub repository with fully reproducible code
-- 12–15 page research paper in LaTeX/PDF
+- Clean GitHub repository (es-futures-microstructure) — COMPLETE
+- 27-page research paper in LaTeX/PDF — COMPLETE
 
 ## Research goals and standards
 This project targets quant researcher and trader internship
-applications at top firms. It must be defensible in a technical
-interview — every line of code, every methodological choice,
-every result.
+applications at top firms.
 
 ---
 
 ## Project phases
 - Phase 0: Foundations — Python (Stream A), Statistics (Stream B),
-  Microstructure (Stream C).
+  Microstructure (Stream C). COMPLETE.
 - Phase 1: Data familiarization — load full sample, clean,
-  descriptive stats
-- Phase 2: Research question selection and literature review
-- Phase 3: Exploratory analysis of chosen phenomenon
-- Phase 4: Formal statistical analysis, in/out-of-sample testing
-- Phase 5: Paper writing — complete. All sections written,
-  abstract added, references finalized.
-- Phase 6: Code polish and final LaTeX/PDF production — IN PROGRESS
+  descriptive stats. COMPLETE.
+- Phase 2: Research question selection and literature review.
+  COMPLETE.
+- Phase 3: Exploratory analysis of chosen phenomenon. COMPLETE.
+- Phase 4: Formal statistical analysis, in/out-of-sample testing.
+  COMPLETE.
+- Phase 5: Paper writing — all 8 sections, abstract, references.
+  COMPLETE.
+- Phase 6: Code polish, LaTeX/PDF production, repository cleanup.
+  COMPLETE.
 
 ## Current status
 
-**Phases 1–5: COMPLETE.**
+**ALL PHASES COMPLETE. PROJECT FINALIZED.**
 
-PAPER.md is fully drafted — all 8 sections, abstract, and
-references complete. README.md is written. All Phase 4 findings
-are finalized and locked.
+Final paper: `paper/es-futures-microstructure.pdf` (27 pages).
+Repository: es-futures-microstructure on GitHub.
+All code polished, all results regenerated, README updated.
 
-**Phase 6: IN PROGRESS.**
-
-Remaining tasks:
-1. Code polish pass — signal_construction.py and formal_analysis.py
-   (deep), plot_signals.py, test_load.py, test_signals.py (light)
-2. LaTeX conversion with figures, formatted tables, math environments
-3. Final PDF production
+Next project: Paper 2 — MBO-based orthogonal regime detector study.
+MBO data purchased: 2025-09-01 to 2025-12-28 (GLBX.MDP3, ~20GB).
+Stored at: ~/Desktop/Quant Research Project/raw-data/mbo/
 
 ## Final results summary
 
@@ -109,7 +106,7 @@ Circularity confirmed as explanation.
 ---
 
 ## Project structure
-quant-research-project/
+es-futures-microstructure/
     /data        — data documentation only, no raw files
     /notebooks   — exploratory Jupyter notebooks (not started)
     /src         — clean reusable Python modules
@@ -134,6 +131,9 @@ quant-research-project/
             arrival_distribution.png       arrival_individual_days.png
             regime_score_timeseries.png    regime_score_intraday.png
             regime_score_distribution.png  regime_score_individual_days.png
+            tfi_scatter_by_regime.png
+            tfi_distribution_by_regime.png
+            tfi_acf_by_regime.png
         /phase4              — Phase 4 formal analysis outputs
             primary_regression.txt
             contemporaneous_regression.txt
@@ -149,10 +149,11 @@ quant-research-project/
             subsample_oct_dec_regression.txt
             key_coefficients.csv
             transaction_cost_analysis.txt
-    /paper       — working paper and research documents
-        PAPER.md              — complete working paper draft
-        phase2_development.md — Phase 2 research development
-        phase4_findings.md    — Phase 4 complete findings record
+    /paper
+        es-futures-microstructure.pdf  — final working paper (27 pages)
+        PAPER.md                       — working paper source
+        phase2_development.md          — Phase 2 research development
+        phase4_findings.md             — Phase 4 complete findings record
     README.md    — project overview for GitHub
     JOURNAL.md   — chronological research session log
     NOTES.md     — general technical concept reference
@@ -173,22 +174,13 @@ concepts learned during the project that apply universally
 Language explains concepts from first principles. This is
 where general knowledge lives, not project-specific results.
 
-PAPER.md — formal working paper draft. Contains only content
-that belongs in the final research paper. Language is formal
-and calibrated for graduate-level quants and quant recruiters.
-Connects findings to known concepts without explaining them.
-Every claim is supported by a number from the analysis.
+PAPER.md — formal working paper source. Final version produced
+as es-futures-microstructure.pdf.
 
 phase4_findings.md — complete internal record of all Phase 4
 test results, interpretations, diagnostic outputs, and design
 decisions. More detailed than PAPER.md. Source of truth for
 paper writing.
-
-The distinction: if a concept applies to any project, it goes
-in NOTES. If it is specific to this dataset and analysis, it
-goes in JOURNAL (findings) or PAPER.md (if paper-ready).
-PAPER.md never contains explanations of standard concepts —
-only empirical observations connected to those concepts.
 
 ## Research design summary
 
@@ -232,17 +224,22 @@ Final result: β₃ = 0.000371, p = 0.234 — null efficiency finding.
   proxies; most accurate proxies are circular with TFI
 - Dufour and Engle (2000) — JF — inter-trade duration and
   informed trading; theoretical basis for TAR
+- O'Hara (1995) — Market Microstructure Theory, Blackwell —
+  informed trading characterized jointly by price impact and
+  active participation; theoretical basis for multiplicative design
 - Roll (1984) — JF — implicit spread estimator (considered,
   excluded — non-orthogonal to lambda, fails in one-sided markets)
 
 ## Data
 - Source: Databento, GLBX.MDP3, Trades schema
 - In-sample: 2025-05-01 to 2025-12-30 (169 trading days)
-  Location: ~/Desktop/Quant Research Project/raw-data/
+  Location: ~/Desktop/Quant Research Project/raw-data/trades/
             GLBX-20250501-20251231/
 - Out-of-sample: 2026-01-02 to 2026-03-06 (46 trading days)
-  Location: ~/Desktop/Quant Research Project/raw-data/
+  Location: ~/Desktop/Quant Research Project/raw-data/trades/
             GLBX-20260101-20260309/
+- MBO data (Paper 2): 2025-01-05 to 2025-12-28
+  Location: ~/Desktop/Quant Research Project/raw-data/mbo/
 - Fields used: ts_event_et (Eastern time), price, size,
   side (B/A/N)
 - Fields ignored: rtype, publisher_id, instrument_id, action,

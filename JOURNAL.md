@@ -1589,23 +1589,30 @@ None
    and test_signals.py (light).
 2. Update GitHub repository — add description and topic tags.
 3. Write final paper in LaTeX with figures, formatted tables,
-   and proper math environments.
-4. Produce final PDF.
+   and proper math environments and produce final PDF.
 
 ---
 
-## 2026-04-14
+## 2026-04-27
 
 **Session Summary:**
-- 
+- Polished all five source files: test_load.py, test_signals.py,
+  plot_signals.py, signal_construction.py, data_loader.py,
+  formal_analysis.py and reran all three pipeline scripts.
+- Polished GitHub repo (rename to  es-futures-microstructure, 
+  added description and topic tags, updated README).
+- Produced final paper in LaTeX on Overleaf
+- Purchased MBO data (2025-01-05 to 2025-12-28, ~60GB, ~$375)
+  via Databento Python API for future and continued research.
 
 **Findings:**
-
+None
 
 **Open questions:**
-
+None
 
 **Next step:**
-
+Begin planning Paper 2 — MBO-based orthogonal regime
+detector study.
 
 ---

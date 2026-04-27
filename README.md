@@ -64,7 +64,7 @@ limit order book detector.
 ## Repository Structure
 
 ```
-quant-research-project/
+es-futures-microstructure/
 ├── src/
 │   ├── data_loader.py          # Data loading, cleaning, TFI, returns
 │   ├── signal_construction.py  # Kyle's lambda, TAR, regime score
@@ -77,8 +77,9 @@ quant-research-project/
 │   ├── phase3/                 # Signal component exploratory plots
 │   └── phase4/                 # Regression output files and CSVs
 ├── paper/
-│   ├── PAPER.md                # Working paper draft (Sections 3–8 complete)
-│   └── phase4_findings.md      # Complete internal findings record
+│   ├── es-futures-microstructure.pdf  # Final working paper (27 pages)
+│   ├── PAPER.md                       # Working paper source
+│   └── phase4_findings.md             # Complete internal findings record
 ├── data/                       # Data documentation only — no raw files
 ├── JOURNAL.md                  # Chronological research session log
 └── CLAUDE.md                   # Project context and design decisions
@@ -102,8 +103,8 @@ Trades feed for the date ranges above. Place the resulting `.dbn.zst`
 files in the following directories:
 
 ```
-~/Desktop/Quant Research Project/raw-data/GLBX-20250501-20251231/
-~/Desktop/Quant Research Project/raw-data/GLBX-20260101-20260309/
+~/Desktop/Quant Research Project/raw-data/trades/GLBX-20250501-20251231/
+~/Desktop/Quant Research Project/raw-data/trades/GLBX-20260101-20260309/
 ```
 
 Or update the `DATA_DIR` and `OOS_DATA_DIR` paths at the top of
@@ -131,6 +132,12 @@ pip install pandas numpy scipy statsmodels matplotlib databento
 3. All regression summaries, coefficient tables, and diagnostic outputs
    are saved to `results/phase4/`
 
+To reproduce Phase 1 descriptive statistics and plots:
+
+```bash
+python3 src/test_load.py
+```
+
 To reproduce Phase 3 signal component plots:
 
 ```bash
@@ -141,13 +148,12 @@ python3 src/plot_signals.py
 
 ## Working Paper
 
-The working paper draft is available at `paper/PAPER.md`. All 8 sections
-(Introduction, Literature Review, Data, Signal Construction, Results, 
-Robustness, Market Maker Implications, Future Research) are complete. 
+The final working paper is available at
+[`paper/es-futures-microstructure.pdf`](paper/es-futures-microstructure.pdf).
 
 ---
 
 ## Author
 
-Gabriel Ungab — Georgia Tech, Mathematics (Probability & Statistics), Class of 2029. 
-Targeting quantitative research and trading roles.
+Gabriel Ungab — Georgia Institute of Technology, Mathematics and Computer
+Science, Class of 2029. Targeting quantitative research and trading roles.
