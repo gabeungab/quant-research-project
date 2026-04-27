@@ -1,8 +1,49 @@
-import pandas as pd
-import numpy as np
-import statsmodels.api as sm
+"""
+formal_analysis.py — Phase 4 formal statistical analysis pipeline.
+
+Runs the complete regression analysis for the ES futures microstructure
+study. All tests use the multiplicative regime detector (Kyle's lambda ×
+trade arrival rate), post-only announcement exclusion windows (+30 min
+after FOMC, CPI, NFP), and Newey-West HAC standard errors (maxlags=5).
+
+Sections (in execution order):
+    1.  Data preparation and signal computation
+    2.  Regime score diagnostics (autocorrelation, formulation comparison)
+    3.  Regime detector validation (contemporaneous slope test)
+    4.  Summary statistics
+    5.  Primary regression — Return_{t+1}
+    6.  Stable regime conditions test
+    7.  Contemporaneous regression — Return_t (lagged RegimeScore)
+    8.  Horizon analysis — T+5 and T+15
+    9.  Subsample stability
+    10. Out-of-sample validation — 2026
+    11. OOS diagnostic tests
+    12. OOS lambda level comparison
+    13. Lagged regime conditioning
+    14. Midday subsample
+    15. TFI quintile interaction
+    16. Regime transition dynamics
+    17. Transition delta magnitude diagnostic
+    18. Transition threshold robustness
+    19. Transaction cost analysis
+    20. Save results
+
+Outputs written to results/phase4/:
+    primary_regression.txt, contemporaneous_regression.txt,
+    oos_primary_regression.txt, lagged_regime_regression.txt,
+    midday_regression.txt, quintile_interaction_regression.txt,
+    transition_dynamics_regression.txt, horizon_t{5,15}_regression.txt,
+    subsample_{full,may_sep,oct_dec}_regression.txt,
+    key_coefficients.csv, transaction_cost_analysis.txt
+"""
+
 import os
 import sys
+
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+from scipy import stats as scipy_stats
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -18,59 +59,57 @@ from signal_construction import (
 # CONFIGURATION
 # =============================================================================
 
-# Data directories
 DATA_DIR = os.path.expanduser(
-    '~/Desktop/Quant Research Project/raw-data/GLBX-20250501-20251231/'
+    '~/Desktop/Quant Research Project/raw-data/trades/GLBX-20250501-20251231/'
 )
 OOS_DATA_DIR = os.path.expanduser(
-    '~/Desktop/Quant Research Project/raw-data/GLBX-20260101-20260309/'
+    '~/Desktop/Quant Research Project/raw-data/trades/GLBX-20260101-20260309/'
 )
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'results', 'phase4')
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# Timezone for all timestamp operations
 TZ = 'America/New_York'
 
-# Scheduled macro announcement times (Eastern). Post-announcement exclusion
-# windows (+30 min) are applied after each event. Pre-announcement windows
-# are retained as potentially informed.
+# Scheduled macro announcement datetimes (Eastern).
+# Post-announcement exclusion windows (+30 min) are applied after each event.
+# Pre-announcement windows are retained as potentially informed.
 ANNOUNCEMENT_DATES = [
     # FOMC decisions (2:00 PM ET)
-    pd.Timestamp("2025-05-07 14:00", tz=TZ),
-    pd.Timestamp("2025-06-18 14:00", tz=TZ),
-    pd.Timestamp("2025-07-30 14:00", tz=TZ),
-    pd.Timestamp("2025-09-17 14:00", tz=TZ),
-    pd.Timestamp("2025-10-29 14:00", tz=TZ),
-    pd.Timestamp("2025-12-10 14:00", tz=TZ),
+    pd.Timestamp('2025-05-07 14:00', tz=TZ),
+    pd.Timestamp('2025-06-18 14:00', tz=TZ),
+    pd.Timestamp('2025-07-30 14:00', tz=TZ),
+    pd.Timestamp('2025-09-17 14:00', tz=TZ),
+    pd.Timestamp('2025-10-29 14:00', tz=TZ),
+    pd.Timestamp('2025-12-10 14:00', tz=TZ),
     # CPI releases (8:30 AM ET)
-    pd.Timestamp("2025-05-13 08:30", tz=TZ),
-    pd.Timestamp("2025-06-11 08:30", tz=TZ),
-    pd.Timestamp("2025-07-15 08:30", tz=TZ),
-    pd.Timestamp("2025-08-12 08:30", tz=TZ),
-    pd.Timestamp("2025-09-10 08:30", tz=TZ),
-    pd.Timestamp("2025-12-18 08:30", tz=TZ),
+    pd.Timestamp('2025-05-13 08:30', tz=TZ),
+    pd.Timestamp('2025-06-11 08:30', tz=TZ),
+    pd.Timestamp('2025-07-15 08:30', tz=TZ),
+    pd.Timestamp('2025-08-12 08:30', tz=TZ),
+    pd.Timestamp('2025-09-10 08:30', tz=TZ),
+    pd.Timestamp('2025-12-18 08:30', tz=TZ),
     # NFP releases (8:30 AM ET)
-    pd.Timestamp("2025-05-02 08:30", tz=TZ),
-    pd.Timestamp("2025-06-06 08:30", tz=TZ),
-    pd.Timestamp("2025-07-03 08:30", tz=TZ),
-    pd.Timestamp("2025-08-01 08:30", tz=TZ),
-    pd.Timestamp("2025-09-05 08:30", tz=TZ),
-    pd.Timestamp("2025-11-20 08:30", tz=TZ),
-    pd.Timestamp("2025-12-16 08:30", tz=TZ),
+    pd.Timestamp('2025-05-02 08:30', tz=TZ),
+    pd.Timestamp('2025-06-06 08:30', tz=TZ),
+    pd.Timestamp('2025-07-03 08:30', tz=TZ),
+    pd.Timestamp('2025-08-01 08:30', tz=TZ),
+    pd.Timestamp('2025-09-05 08:30', tz=TZ),
+    pd.Timestamp('2025-11-20 08:30', tz=TZ),
+    pd.Timestamp('2025-12-16 08:30', tz=TZ),
 ]
 
 OOS_ANNOUNCEMENT_DATES = [
     # FOMC decisions (2:00 PM ET)
-    pd.Timestamp("2026-01-28 14:00", tz=TZ),
-    pd.Timestamp("2026-03-18 14:00", tz=TZ),
+    pd.Timestamp('2026-01-28 14:00', tz=TZ),
+    pd.Timestamp('2026-03-18 14:00', tz=TZ),
     # CPI releases (8:30 AM ET)
-    pd.Timestamp("2026-01-13 08:30", tz=TZ),
-    pd.Timestamp("2026-02-11 08:30", tz=TZ),
-    pd.Timestamp("2026-03-11 08:30", tz=TZ),
+    pd.Timestamp('2026-01-13 08:30', tz=TZ),
+    pd.Timestamp('2026-02-11 08:30', tz=TZ),
+    pd.Timestamp('2026-03-11 08:30', tz=TZ),
     # NFP releases (8:30 AM ET)
-    pd.Timestamp("2026-01-09 08:30", tz=TZ),
-    pd.Timestamp("2026-02-11 08:30", tz=TZ),
-    pd.Timestamp("2026-03-06 08:30", tz=TZ),
+    pd.Timestamp('2026-01-09 08:30', tz=TZ),
+    pd.Timestamp('2026-02-11 08:30', tz=TZ),
+    pd.Timestamp('2026-03-06 08:30', tz=TZ),
 ]
 
 # Columns required for the primary regression — used to drop NaN rows once,
@@ -80,6 +119,12 @@ REGRESSION_COLS = [
     'regime_score_lag', 'tfi_x_regime_lag', 'lag_return', 'lag_tfi',
 ]
 
+# Primary regression regressors — used across all main regressions.
+PRIMARY_COLS = ['tfi', 'regime_score', 'tfi_x_regime', 'lag_return', 'lag_tfi']
+
+# Primary variables reported in the collated coefficient CSV.
+PRIMARY_VARS = ['const', 'tfi', 'regime_score', 'tfi_x_regime', 'lag_return', 'lag_tfi']
+
 # HAC standard error lag truncation applied uniformly across all regressions.
 HAC_LAGS = 5
 
@@ -87,19 +132,28 @@ HAC_LAGS = 5
 # section (5 simultaneous tests, family-wise α = 0.05).
 BONFERRONI_ALPHA = 0.05 / 5
 
+# ES futures tick size in index points (used for transaction cost analysis).
+ES_TICK = 0.25
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
+def _rolling_zscore(series, window):
+    """Compute rolling z-score with minimum periods equal to window."""
+    mean = series.rolling(window=window, min_periods=window).mean()
+    std  = series.rolling(window=window, min_periods=window).std()
+    return (series - mean) / std.replace(0, float('nan'))
+
+
 def _fit_ols(y, X_cols, data):
-    """Fit HAC-robust OLS. Returns fitted model."""
+    """Fit HAC-robust OLS and return the fitted model."""
     X = sm.add_constant(data[X_cols])
     return sm.OLS(y, X).fit(cov_type='HAC', cov_kwds={'maxlags': HAC_LAGS})
 
 
 def _print_coeff_table(model, variables):
-    """Print a compact coefficient table for the given variable list."""
+    """Print a compact coefficient table for the specified variables."""
     print(f"  {'Variable':<20} {'Coeff':>12} {'z-stat':>8} {'p-value':>10}")
     print(f"  {'-' * 54}")
     for var in variables:
@@ -114,18 +168,45 @@ def _print_coeff_table(model, variables):
 
 
 def _save_model(model, filename):
-    """Write statsmodels summary to a text file in RESULTS_DIR."""
+    """Write a statsmodels summary to a text file in RESULTS_DIR."""
     path = os.path.join(RESULTS_DIR, filename)
     with open(path, 'w') as f:
         f.write(str(model.summary()))
     print(f"  Saved: {filename}")
 
 
+def _collect_rows(fitted_model, model_label, rows):
+    """
+    Append coefficient rows for PRIMARY_VARS from fitted_model to rows.
+    Used to build the collated key_coefficients.csv output.
+    """
+    for var in PRIMARY_VARS:
+        if var not in fitted_model.params:
+            continue
+        rows.append({
+            'model':     model_label,
+            'variable':  var,
+            'coeff':     fitted_model.params[var],
+            't_stat':    fitted_model.tvalues[var],
+            'p_value':   fitted_model.pvalues[var],
+            'r_squared': fitted_model.rsquared,
+            'n_obs':     int(fitted_model.nobs),
+        })
+
+
 def _build_reg_df(tfi_input, returns_input, regime_score_input):
     """
     Assemble the regression DataFrame from signal outputs, null out
-    overnight first bars, and construct all lagged/interaction terms.
-    Accepts either a Series or a single-column DataFrame from each signal.
+    first bars of each day (overnight return contamination), and
+    construct all lagged and interaction terms.
+
+    Accepts either a Series or a single-column DataFrame for each signal.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: tfi, log_return, regime_score, fwd_return, lag_return,
+        lag_tfi, tfi_x_regime, regime_score_lag, tfi_x_regime_lag.
     """
     tfi_s = tfi_input['tfi'] if isinstance(tfi_input, pd.DataFrame) else tfi_input
     ret_s = (returns_input['log_return']
@@ -137,8 +218,8 @@ def _build_reg_df(tfi_input, returns_input, regime_score_input):
         'regime_score': regime_score_input,
     })
 
-    # Null out the first bar of each trading day — the overnight gap
-    # means log_return at bar 0 is not a valid RTH return.
+    # Null the first bar of each trading day — the overnight gap means
+    # log_return at bar 0 is not a valid RTH intraday return.
     dates = pd.Series(df.index.date, index=df.index)
     df.loc[dates != dates.shift(1), 'log_return'] = np.nan
 
@@ -155,8 +236,13 @@ def _build_reg_df(tfi_input, returns_input, regime_score_input):
 def _compute_signed_flow(df_clean):
     """
     Compute per-bar signed order flow (buy volume minus sell volume)
-    using aggressor-side trade classification. Used as the input for
-    the lambda window stability metric.
+    at 1-minute resolution using aggressor-side trade classification.
+    Used as the input for the lambda window stability metric.
+
+    Returns
+    -------
+    pd.Series
+        Signed order flow at each 1-minute bar, indexed by ts_event_et.
     """
     indexed = df_clean.set_index('ts_event_et')
     return (
@@ -188,7 +274,7 @@ arrival_series = compute_arrival_rate(df_clean)
 df_indexed = df_clean.set_index('ts_event_et')
 bars       = df_indexed['price'].resample('1min').count()
 
-# Strip timezone if index is tz-naive (environment-dependent)
+# Strip timezone if bar index is tz-naive (environment-dependent).
 ann_dates = ANNOUNCEMENT_DATES
 if bars.index.tzinfo is None:
     ann_dates = [dt.tz_localize(None) for dt in ann_dates]
@@ -198,8 +284,8 @@ regime_score   = compute_regime_score(lambda_series, arrival_series, exclusion_m
 tfi            = compute_tfi(df_clean)
 returns        = compute_returns(df_clean)
 
-# Signed flow is used to measure lambda estimation window stability
-# (rolling std of signed flow over the same 30-bar window used by lambda).
+# Signed flow used for the lambda window stability metric —
+# rolling std of signed flow over the same 30-bar window used by lambda.
 signed_flow_series = _compute_signed_flow(df_clean)
 
 print("\n[3] Building regression DataFrame...")
@@ -211,12 +297,12 @@ print(f"    Dropped (NaN/warmup/boundaries): {n_raw - len(reg):,}")
 print(f"    Final regression N:              {len(reg):,}")
 
 # =============================================================================
-# REGIME SCORE AUTOCORRELATION DIAGNOSTIC
+# 2. REGIME SCORE AUTOCORRELATION DIAGNOSTIC
 # =============================================================================
-# Informs interpretation of the contemporaneous regression (Section 3).
+# Informs interpretation of the contemporaneous regression.
 # High lag-1 autocorrelation means lagging RegimeScore by one bar removes
-# little circularity, making residual confounding the dominant explanation
-# for any apparent contemporaneous regime-TFI interaction.
+# little circularity — residual confounding dominates the contemporaneous
+# p-value regardless of the regime-lagging specification.
 
 print("\n" + "=" * 60)
 print("REGIME SCORE AUTOCORRELATION DIAGNOSTIC")
@@ -248,11 +334,6 @@ print("\n" + "=" * 60)
 print("DETECTOR FORMULATION COMPARISON — MULTIPLICATIVE VS ADDITIVE")
 print("=" * 60)
 
-def _rolling_zscore(series, window):
-    mean = series.rolling(window=window, min_periods=window).mean()
-    std  = series.rolling(window=window, min_periods=window).std()
-    return (series - mean) / std.replace(0, float('nan'))
-
 # Recompute additive score on same lambda and arrival series
 z_lambda_add  = _rolling_zscore(lambda_series,  window=30)
 z_arrival_add = _rolling_zscore(arrival_series, window=5)
@@ -260,33 +341,33 @@ composite_add = z_lambda_add + z_arrival_add
 regime_score_additive = 1 / (1 + np.exp(-composite_add))
 
 # Apply same exclusion mask
-excl_aligned = exclusion_mask.reindex(regime_score_additive.index, fill_value=False)
+excl_aligned          = exclusion_mask.reindex(regime_score_additive.index, fill_value=False)
 regime_score_additive = regime_score_additive.where(~excl_aligned, other=0.0)
 
 # Align both to regression index for fair comparison
 rs_mult = reg['regime_score']
 rs_add  = regime_score_additive.reindex(reg.index)
-
 valid   = rs_mult.notna() & rs_add.notna()
 corr    = rs_mult[valid].corr(rs_add[valid])
 
 print(f"\n  Pearson correlation (multiplicative vs additive): {corr:.4f}")
 print(f"\n  {'Metric':<30} {'Multiplicative':>16} {'Additive':>16}")
 print(f"  {'-' * 64}")
-for metric, fn in [('Mean',   lambda s: s.mean()),
-                   ('Std',    lambda s: s.std()),
-                   ('Median', lambda s: s.median()),
+for metric, fn in [('Mean',        lambda s: s.mean()),
+                   ('Std',         lambda s: s.std()),
+                   ('Median',      lambda s: s.median()),
                    ('75th pctile', lambda s: s.quantile(0.75))]:
     print(f"  {metric:<30} {fn(rs_mult[valid]):>16.4f} {fn(rs_add[valid]):>16.4f}")
 
-hi_mult = (rs_mult > 0.5).mean()
-hi_add  = (rs_add  > 0.5).mean()
+hi_mult   = (rs_mult > 0.5).mean()
+hi_add    = (rs_add  > 0.5).mean()
+agreement = ((rs_mult > 0.5) == (rs_add > 0.5))[valid].mean()
+
 print(f"\n  High-regime fraction (>0.5):")
 print(f"    Multiplicative: {hi_mult:.4f} ({hi_mult * 100:.1f}%)")
 print(f"    Additive:       {hi_add:.4f}  ({hi_add  * 100:.1f}%)")
-
-agreement = ((rs_mult > 0.5) == (rs_add > 0.5))[valid].mean()
-print(f"\n  Bar-level regime classification agreement: {agreement:.4f} ({agreement*100:.1f}%)")
+print(f"\n  Bar-level regime classification agreement: "
+      f"{agreement:.4f} ({agreement * 100:.1f}%)")
 print(f"\n  Interpretation:")
 print(f"    Correlation > 0.95 → formulations are equivalent in practice;")
 print(f"                         findings are robust to design choice.")
@@ -294,52 +375,46 @@ print(f"    Correlation < 0.90 → material difference; rerun all tests")
 print(f"                         and compare findings explicitly.")
 
 # =============================================================================
-# REGIME DETECTOR VALIDATION
+# 3. REGIME DETECTOR VALIDATION
 # =============================================================================
-# Two formal validation tests confirm the regime detector is identifying
-# periods of elevated information asymmetry as intended, before any
-# predictability tests are run.
+# Formal validation test: contemporaneous TFI-return slope should be
+# statistically significantly larger in high-regime bars than low-regime bars.
+# This is the direct empirical implication of Kyle (1985) — elevated adverse
+# selection produces stronger price impact per unit of order flow.
 #
-# Test 1: Contemporaneous TFI-return slope should be statistically
-#         significantly larger in high-regime bars than low-regime bars.
-#         Informed order flow moves prices more per unit of TFI within
-#         the same bar — this is a direct implication of Kyle (1985).
-#
-# Test 2: RegimeScore should be measurably elevated in the 30-minute
-#         pre-announcement window relative to matched non-announcement
-#         windows of the same time-of-day, when informed traders with
-#         early signal access are most active.
+# Note: a pre-announcement RegimeScore elevation test was also considered
+# but was deemed infeasible with RTH-only data (only 6 observable FOMC
+# pre-announcement windows). Results from that test are not reported.
 
 print("\n" + "=" * 60)
 print("REGIME DETECTOR VALIDATION")
 print("=" * 60)
 
-# ── Validation Test 1: Contemporaneous TFI-return slope by regime ─────────────
-print("\n--- Validation Test 1: Contemporaneous TFI-Return Slope by Regime ---")
+print("\n--- Validation Test: Contemporaneous TFI-Return Slope by Regime ---")
 print("  Tests whether the within-bar TFI-return relationship is")
 print("  significantly stronger in high-regime bars than low-regime bars.")
 print("  A significant interaction confirms the detector correctly")
 print("  identifies periods of elevated within-bar price impact.")
 
-# Use contemporaneous Return_t as dependent variable
-# Regime is split into binary high/low dummy for interpretability
-# RegimeScore_t is used here (not lagged) since this is a within-bar
-# characterization test, not a predictive test — confounding is acknowledged.
+# RegimeScore_t is used contemporaneously (not lagged) because the validation
+# specifically asks whether the current bar's regime state is associated with
+# stronger within-bar price impact. Using lagged RegimeScore would test a
+# weaker, less direct question. TFI-Return confounding is acknowledged —
+# this is a directional sanity check, not a causal test.
 
 reg_val = reg.copy()
 reg_val['high_regime_dummy'] = (reg_val['regime_score'] > 0.5).astype(float)
 reg_val['tfi_x_high_regime'] = reg_val['tfi'] * reg_val['high_regime_dummy']
 
-val_cols = ['tfi', 'high_regime_dummy', 'tfi_x_high_regime', 'lag_tfi']
-y_val    = reg_val['lag_return']   # Return_t (contemporaneous)
-X_val    = sm.add_constant(reg_val[val_cols])
+val_cols   = ['tfi', 'high_regime_dummy', 'tfi_x_high_regime', 'lag_tfi']
+y_val      = reg_val['lag_return']   # Return_t (contemporaneous)
+X_val      = sm.add_constant(reg_val[val_cols])
 model_val1 = sm.OLS(y_val, X_val).fit(cov_type='HAC', cov_kwds={'maxlags': HAC_LAGS})
 
-b1_val   = model_val1.params['tfi']
-b3_val   = model_val1.params['tfi_x_high_regime']
-p3_val   = model_val1.pvalues['tfi_x_high_regime']
-z3_val   = model_val1.tvalues['tfi_x_high_regime']
-
+b1_val     = model_val1.params['tfi']
+b3_val     = model_val1.params['tfi_x_high_regime']
+p3_val     = model_val1.pvalues['tfi_x_high_regime']
+z3_val     = model_val1.tvalues['tfi_x_high_regime']
 slope_low  = b1_val
 slope_high = b1_val + b3_val
 
@@ -347,9 +422,9 @@ print(f"\n  Contemporaneous validation regression | N={int(model_val1.nobs):,}")
 print(f"  {'Variable':<25} {'Coeff':>12} {'z-stat':>8} {'p-value':>10}")
 print(f"  {'-' * 59}")
 for var in ['const', 'tfi', 'high_regime_dummy', 'tfi_x_high_regime', 'lag_tfi']:
-    c = model_val1.params[var]
-    t = model_val1.tvalues[var]
-    p = model_val1.pvalues[var]
+    c   = model_val1.params[var]
+    t   = model_val1.tvalues[var]
+    p   = model_val1.pvalues[var]
     sig = '***' if p < 0.01 else '**' if p < 0.05 else '*' if p < 0.10 else ''
     print(f"  {var:<25} {c:>12.6f} {t:>8.3f} {p:>10.4f} {sig}")
 
@@ -360,9 +435,10 @@ if slope_low != 0:
     print(f"    Amplification ratio: {slope_high / slope_low:.3f}x")
 
 print(f"\n  Interaction term (β₃ = tfi_x_high_regime):")
-print(f"    Coeff:  {b3_val:.6f}")
-print(f"    z-stat: {z3_val:.3f}")
+print(f"    Coeff:   {b3_val:.6f}")
+print(f"    z-stat:  {z3_val:.3f}")
 print(f"    p-value: {p3_val:.4f}")
+
 if p3_val < 0.05:
     print(f"  → SIGNIFICANT: High-regime slope is statistically larger.")
     print(f"    Detector correctly identifies elevated within-bar price impact.")
@@ -374,96 +450,6 @@ print(f"\n  NOTE: This test uses contemporaneous RegimeScore_t — TFI-Return")
 print(f"  confounding within bar t is present and acknowledged. This is a")
 print(f"  directional sanity check, not a causal test.")
 
-# ── Validation Test 2: Pre-announcement RegimeScore elevation ─────────────────
-print("\n--- Validation Test 2: Pre-Announcement RegimeScore Elevation ---")
-print("  Tests whether RegimeScore is elevated in the 30-minute window")
-print("  before scheduled macro announcements relative to matched")
-print("  non-announcement windows of the same time-of-day.")
-print("  Informed traders with early signal access should be active")
-print("  in this window, producing elevated lambda and TAR.")
-
-# Build a DataFrame of all bars in the regression sample with their
-# time-of-day and a flag for whether they fall in a pre-announcement window.
-
-reg_val2 = reg[['regime_score', 'lag_return']].copy()
-reg_val2['hour_minute'] = reg_val2.index.hour * 60 + reg_val2.index.minute
-reg_val2['pre_announcement'] = False
-
-# For each announcement, flag the 30 bars before it
-ann_dates_aligned = ann_dates  # already tz-stripped if needed above
-for ann_dt in ann_dates_aligned:
-    window_end   = ann_dt
-    window_start = ann_dt - pd.Timedelta(minutes=30)
-    in_window = (
-        (reg_val2.index >= window_start) &
-        (reg_val2.index <  window_end)
-    )
-    reg_val2.loc[in_window, 'pre_announcement'] = True
-
-n_pre  = reg_val2['pre_announcement'].sum()
-n_ctrl = (~reg_val2['pre_announcement']).sum()
-
-rs_pre  = reg_val2.loc[ reg_val2['pre_announcement'], 'regime_score']
-rs_ctrl = reg_val2.loc[~reg_val2['pre_announcement'], 'regime_score']
-
-print(f"\n  Pre-announcement bars:  {n_pre:,}")
-print(f"  Control bars:           {n_ctrl:,}")
-print(f"\n  RegimeScore comparison:")
-print(f"    Pre-announcement mean:  {rs_pre.mean():.4f}")
-print(f"    Control mean:           {rs_ctrl.mean():.4f}")
-print(f"    Difference:             {rs_pre.mean() - rs_ctrl.mean():+.4f}")
-print(f"    Pre/control ratio:      {rs_pre.mean() / rs_ctrl.mean():.3f}x")
-
-# Welch's t-test (unequal variance) — appropriate since group sizes differ
-from scipy import stats as scipy_stats
-t_stat, p_ttest = scipy_stats.ttest_ind(rs_pre, rs_ctrl, equal_var=False)
-
-print(f"\n  Welch's t-test (pre-announcement vs control):")
-print(f"    t-statistic: {t_stat:.3f}")
-print(f"    p-value:     {p_ttest:.4f}")
-
-if p_ttest < 0.05:
-    if rs_pre.mean() > rs_ctrl.mean():
-        print(f"  → SIGNIFICANT: RegimeScore is elevated before announcements.")
-        print(f"    Consistent with informed trading in the pre-announcement window.")
-    else:
-        print(f"  → SIGNIFICANT but in wrong direction: RegimeScore is lower")
-        print(f"    before announcements. Investigate — this is unexpected.")
-else:
-    print(f"  → NOT SIGNIFICANT: Cannot confirm pre-announcement elevation.")
-
-# Time-of-day matched comparison: restrict control to bars at the same
-# hours as pre-announcement bars, to rule out time-of-day confounding.
-# Most announcements are at 8:30 AM (CPI, NFP) or 2:00 PM (FOMC).
-# Pre-announcement windows therefore cover ~8:00-8:30 AM and ~1:30-2:00 PM.
-pre_hours = set(reg_val2.loc[reg_val2['pre_announcement']].index.hour.unique())
-rs_ctrl_matched = reg_val2.loc[
-    (~reg_val2['pre_announcement']) &
-    (reg_val2.index.hour.isin(pre_hours)),
-    'regime_score'
-]
-
-print(f"\n  Time-of-day matched comparison (same hours as pre-announcement):")
-print(f"    Pre-announcement hours: {sorted(pre_hours)}")
-print(f"    Matched control bars:   {len(rs_ctrl_matched):,}")
-print(f"    Matched control mean:   {rs_ctrl_matched.mean():.4f}")
-print(f"    Pre-announcement mean:  {rs_pre.mean():.4f}")
-print(f"    Difference:             {rs_pre.mean() - rs_ctrl_matched.mean():+.4f}")
-
-t_matched, p_matched = scipy_stats.ttest_ind(rs_pre, rs_ctrl_matched, equal_var=False)
-print(f"    t-statistic: {t_matched:.3f}  p-value: {p_matched:.4f}")
-
-if p_matched < 0.05:
-    if rs_pre.mean() > rs_ctrl_matched.mean():
-        print(f"  → SIGNIFICANT after time-of-day matching.")
-        print(f"    Pre-announcement elevation is not a time-of-day artifact.")
-    else:
-        print(f"  → SIGNIFICANT but in wrong direction after matching.")
-else:
-    print(f"  → NOT SIGNIFICANT after time-of-day matching.")
-    print(f"    Elevation may reflect time-of-day pattern rather than")
-    print(f"    informed trading specifically before announcements.")
-
 # =============================================================================
 # SUMMARY STATISTICS
 # =============================================================================
@@ -472,8 +458,8 @@ print("\n[4] Summary statistics — regression sample:")
 print("-" * 60)
 print(reg[REGRESSION_COLS].describe().round(6).to_string())
 
-high_n = (reg['regime_score'] > 0.5).sum()
-low_n  = (reg['regime_score'] <= 0.5).sum()
+high_n  = (reg['regime_score'] > 0.5).sum()
+low_n   = (reg['regime_score'] <= 0.5).sum()
 n_final = len(reg)
 
 print(f"\n  Regime distribution:")
@@ -485,28 +471,30 @@ print(f"    Last bar:     {reg.index.max()}")
 print(f"    Trading days: {reg.index.normalize().nunique()}")
 
 # =============================================================================
-# 2. PRIMARY REGRESSION — Return_{t+1}
+# 4. PRIMARY REGRESSION — Return_{t+1}
 # =============================================================================
 # Primary test: does the regime score amplify TFI's forward predictive power?
-# RegimeScore_t is contemporaneous with TFI_t but predetermined relative to
-# Return_{t+1}, making this regression non-confounded.
+# RegimeScore_t is contemporaneous with TFI_t but fully predetermined relative
+# to Return_{t+1}, making this regression non-confounded in the forward-return
+# sense. Circularity at the interaction level remains — see paper Section 4.5.
 
 print("\n" + "=" * 60)
 print("PRIMARY REGRESSION — Return_{t+1}")
 print("=" * 60)
 
 y     = reg['fwd_return']
-model = _fit_ols(y, ['tfi', 'regime_score', 'tfi_x_regime', 'lag_return', 'lag_tfi'], reg)
+model = _fit_ols(y, PRIMARY_COLS, reg)
 print(model.summary())
 
 # =============================================================================
-# STABLE REGIME CONDITIONS TEST
+# 5. STABLE REGIME CONDITIONS TEST
 # =============================================================================
 # Tests whether the regime detector's signal is stronger when lambda estimation
 # conditions are most stable. Stability is proxied by the rolling standard
 # deviation of signed order flow in the 30-bar lambda estimation window —
 # the same window used by the regime detector. Low std means the window
-# contains steady, representative flow rather than a single large spike.
+# contains steady, representative flow rather than a single large directional
+# spike that would dominate the rolling OLS estimate.
 # Bottom tercile = most stable estimation conditions.
 
 print("\n" + "=" * 60)
@@ -540,8 +528,6 @@ for h, n in stable_hour_dist.items():
     bar = '█' * int(pct / 1.5)
     print(f"    {h:02d}:xx  {n:5,} ({pct:4.1f}%) {bar}")
 
-PRIMARY_COLS = ['tfi', 'regime_score', 'tfi_x_regime', 'lag_return', 'lag_tfi']
-
 model_stable   = _fit_ols(reg_stable['fwd_return'],   PRIMARY_COLS, reg_stable)
 model_unstable = _fit_ols(reg_unstable['fwd_return'], PRIMARY_COLS, reg_unstable)
 
@@ -563,7 +549,7 @@ direction = ("CONSISTENT" if model_stable.pvalues['tfi_x_regime']
 print(f"  Gradient (stable < full < unstable p-value): {direction} with detector quality hypothesis")
 
 # =============================================================================
-# 3. CONTEMPORANEOUS REGRESSION — Return_t (lagged RegimeScore)
+# 6. CONTEMPORANEOUS REGRESSION — Return_t (lagged RegimeScore)
 # =============================================================================
 # Secondary specification: tests for same-bar regime amplification.
 # RegimeScore is lagged by one bar to remove regime-level simultaneity.
@@ -581,7 +567,7 @@ model_contemp = _fit_ols(y_contemp,
 print(model_contemp.summary())
 
 # =============================================================================
-# 4. HORIZON ANALYSIS — T+5 and T+15 Cumulative Returns
+# 7. HORIZON ANALYSIS — T+5 and T+15 Cumulative Returns
 # =============================================================================
 # Tests whether any regime-conditioned predictability persists beyond one bar.
 # Cumulative log returns are computed within each trading day only —
@@ -595,7 +581,7 @@ horizon_models   = {}
 reg_dates_series = pd.Series(reg.index.date, index=reg.index)
 
 for h in [5, 15]:
-    col_h = f'fwd_return_{h}'
+    col_h      = f'fwd_return_{h}'
     reg[col_h] = reg['log_return'].rolling(h).sum().shift(-h)
 
     # Null any window that crosses a day boundary
@@ -603,9 +589,9 @@ for h in [5, 15]:
         crosses = reg_dates_series != reg_dates_series.shift(-i)
         reg.loc[crosses, col_h] = np.nan
 
-    horizon_cols = [col_h, 'tfi', 'regime_score', 'tfi_x_regime', 'lag_return', 'lag_tfi']
-    reg_h        = reg.dropna(subset=horizon_cols)
-    model_h      = _fit_ols(reg_h[col_h], PRIMARY_COLS, reg_h)
+    horizon_cols      = [col_h, 'tfi', 'regime_score', 'tfi_x_regime', 'lag_return', 'lag_tfi']
+    reg_h             = reg.dropna(subset=horizon_cols)
+    model_h           = _fit_ols(reg_h[col_h], PRIMARY_COLS, reg_h)
     horizon_models[h] = model_h
 
     print(f"\n  Horizon T+{h} | N={len(reg_h):,}")
@@ -613,11 +599,11 @@ for h in [5, 15]:
                                   'lag_return', 'lag_tfi'])
 
 # =============================================================================
-# 5. SUBSAMPLE STABILITY
+# 8. SUBSAMPLE STABILITY
 # =============================================================================
 # Splits the in-sample period into two activity regimes to test whether the
-# primary null result is stable. May-Sep = lower-volatility period;
-# Oct-Dec = elevated volatility with more macro events.
+# primary null result is stable. May–Sep = lower-volatility period;
+# Oct–Dec = elevated volatility with more macro events.
 
 print("\n" + "=" * 60)
 print("SUBSAMPLE STABILITY")
@@ -647,7 +633,7 @@ for key, (start, end) in subsamples.items():
         print(f"\n  {key}: insufficient observations ({len(reg_sub)}), skipping")
         continue
 
-    model_sub            = _fit_ols(reg_sub['fwd_return'], PRIMARY_COLS, reg_sub)
+    model_sub             = _fit_ols(reg_sub['fwd_return'], PRIMARY_COLS, reg_sub)
     subsample_models[key] = model_sub
 
     print(f"\n  {period_labels[key]} | N={len(reg_sub):,}")
@@ -655,7 +641,7 @@ for key, (start, end) in subsamples.items():
                                     'lag_return', 'lag_tfi'])
 
 # =============================================================================
-# 6. OUT-OF-SAMPLE VALIDATION — 2026
+# 9. OUT-OF-SAMPLE VALIDATION — 2026
 # =============================================================================
 # Applies the in-sample specification to held-out 2026 data without refitting
 # any parameters. The same regime detector and announcement exclusion logic
@@ -714,24 +700,25 @@ print(f"  Price range — OOS:       {df_oos_indexed['price'].min():.2f} – "
       f"{df_oos_indexed['price'].max():.2f}")
 
 # ── OOS primary regression ────────────────────────────────────────────────────
-model_oos = _fit_ols(reg_oos['fwd_return'], PRIMARY_COLS, reg_oos)
+model_oos     = _fit_ols(reg_oos['fwd_return'], PRIMARY_COLS, reg_oos)
+oos_b3_pvalue = model_oos.pvalues['tfi_x_regime']
 
 print(f"\n  OOS Primary Regression | N={int(model_oos.nobs):,}")
 print(f"    β₃ (tfi_x_regime): {model_oos.params['tfi_x_regime']:.6f}")
 print(f"    z-stat:            {model_oos.tvalues['tfi_x_regime']:.3f}")
-print(f"    p-value:           {model_oos.pvalues['tfi_x_regime']:.4f}")
+print(f"    p-value:           {oos_b3_pvalue:.4f}")
 
 # =============================================================================
-# OOS DIAGNOSTIC TESTS
+# 10. OOS DIAGNOSTIC TESTS
 # =============================================================================
-# Seven diagnostics test why the OOS period produces p=0.004 when the
-# in-sample result is null. Each diagnostic targets a specific alternative
+# Seven diagnostics test why the OOS period produces a significant result
+# when the in-sample result is null. Each targets a specific alternative
 # explanation: HAC adequacy, regime distribution shift, volatility inflation,
 # monthly concentration, rolling episode detection, TFI extremity, and
 # permutation-based spuriousness.
 
 print("\n" + "=" * 60)
-print("OOS DIAGNOSTIC TESTS — Investigating p=0.004 Significance")
+print(f"OOS DIAGNOSTIC TESTS — Investigating p={oos_b3_pvalue:.4f} Significance")
 print("=" * 60)
 
 # ── Diagnostic 1: Residual autocorrelation ────────────────────────────────────
@@ -795,8 +782,9 @@ oos_months = {
 oos_date_col = pd.Series(reg_oos.index.date, index=reg_oos.index)
 
 for month_label, (start, end) in oos_months.items():
-    reg_month = reg_oos[(oos_date_col >= start) & (oos_date_col <= end)].dropna(
-        subset=REGRESSION_COLS)
+    reg_month = reg_oos[
+        (oos_date_col >= start) & (oos_date_col <= end)
+    ].dropna(subset=REGRESSION_COLS)
     if len(reg_month) < 200:
         print(f"\n  {month_label}: N={len(reg_month)} — insufficient for regression, skipping")
         continue
@@ -824,10 +812,10 @@ print(f"  {'-' * 47}")
 
 rolling_results = []
 for i in range(WINDOW_DAYS - 1, len(oos_unique_dates)):
-    w_start  = oos_unique_dates[i - WINDOW_DAYS + 1]
-    w_end    = oos_unique_dates[i]
-    mask     = (oos_dates_series >= w_start) & (oos_dates_series <= w_end)
-    reg_win  = reg_oos[mask].dropna(subset=REGRESSION_COLS)
+    w_start = oos_unique_dates[i - WINDOW_DAYS + 1]
+    w_end   = oos_unique_dates[i]
+    mask    = (oos_dates_series >= w_start) & (oos_dates_series <= w_end)
+    reg_win = reg_oos[mask].dropna(subset=REGRESSION_COLS)
     if len(reg_win) < 150:
         continue
     try:
@@ -876,11 +864,11 @@ else:
 # ── Diagnostic 7: Permutation test ───────────────────────────────────────────
 print("\n--- Diagnostic 7: Permutation Test (N=1,000) ---")
 print("  Tests whether OOS β₃ is in the tail of the null distribution.")
-print("  Returns are randomly permuted, destroying any return predictability")
+print("  Returns are randomly permuted, destroying return predictability")
 print("  while preserving the regressor structure.")
 
 np.random.seed(42)
-N_PERMS   = 1000
+N_PERMS   = 1_000
 perm_b3   = []
 y_oos_arr = reg_oos['fwd_return'].values.copy()
 X_oos_arr = sm.add_constant(reg_oos[PRIMARY_COLS]).values
@@ -893,9 +881,9 @@ for _ in range(N_PERMS):
     except Exception:
         continue
 
-perm_b3    = np.array(perm_b3)
-actual_b3  = model_oos.params['tfi_x_regime']
-perm_pval  = (perm_b3 >= actual_b3).mean()
+perm_b3   = np.array(perm_b3)
+actual_b3 = model_oos.params['tfi_x_regime']
+perm_pval = (perm_b3 >= actual_b3).mean()
 
 print(f"\n  Actual OOS β₃:        {actual_b3:.6f}")
 print(f"  Permutation null β₃:  mean={perm_b3.mean():.6f},  std={perm_b3.std():.6f}")
@@ -913,8 +901,7 @@ print(f"  permutation p-value may reflect serial correlation, not a false positi
 
 # ── Late vs Early OOS Decomposition ──────────────────────────────────────────
 # Splits the OOS period at February 23, 2026 — the date from which rolling
-# windows begin showing consecutive significance. Tests whether the aggregate
-# OOS result is driven by this specific episode.
+# windows begin showing consecutive significance in Diagnostic 5.
 
 print("\n--- OOS Late vs Early Period Decomposition ---")
 print("  Tests whether aggregate OOS significance is driven by the final")
@@ -926,7 +913,7 @@ oos_dates_series = pd.Series(reg_oos.index.date, index=reg_oos.index)
 reg_oos_early    = reg_oos[oos_dates_series <  late_feb_start].dropna(subset=REGRESSION_COLS)
 reg_oos_late     = reg_oos[oos_dates_series >= late_feb_start].dropna(subset=REGRESSION_COLS)
 
-for label, subset in [('Early OOS (Jan–Feb 22)', reg_oos_early),
+for label, subset in [('Early OOS (Jan–Feb 22)',  reg_oos_early),
                        ('Late OOS  (Feb 23–Mar 6)', reg_oos_late)]:
     print(f"\n  {label} | N={len(subset):,}")
     print(f"    Mean RegimeScore: {subset['regime_score'].mean():.4f}  "
@@ -1008,20 +995,11 @@ print(f"    p-value:           {model_aft.pvalues['tfi_x_regime']:.4f}")
 print(f"    β₁ (tfi):          {model_aft.params['tfi']:.6f}")
 print(f"    R²:                {model_aft.rsquared:.6f}")
 
-print(f"\n  β₃ summary across time windows:")
-print(f"    Full sample:       β₃={model.params['tfi_x_regime']:.6f}  "
-      f"p={model.pvalues['tfi_x_regime']:.4f}")
-print(f"    Midday (11–12):    β₃=0.000549  p=0.162")
-print(f"    Afternoon (13–14): β₃={model_aft.params['tfi_x_regime']:.6f}  "
-      f"p={model_aft.pvalues['tfi_x_regime']:.4f}")
-print(f"    Stable lambda:     β₃={model_stable.params['tfi_x_regime']:.6f}  "
-      f"p={model_stable.pvalues['tfi_x_regime']:.4f}")
-
 # =============================================================================
 # OOS LAMBDA LEVEL COMPARISON
 # =============================================================================
-# Uses RegimeScore as a proxy for the average lambda level — tests whether
-# OOS lambda was structurally elevated relative to in-sample, which could
+# Uses RegimeScore as a proxy for average lambda level — tests whether OOS
+# lambda was structurally elevated relative to in-sample, which could
 # mechanically inflate the OOS interaction term via circularity.
 
 print("\n" + "=" * 60)
@@ -1031,9 +1009,9 @@ print("  RegimeScore percentile comparison (>1.10x OOS/IS ratio would")
 print("  indicate structurally elevated lambda as a concern).")
 
 percentiles = [
-    ('Mean', reg['regime_score'].mean(),            reg_oos['regime_score'].mean()),
-    ('75th', reg['regime_score'].quantile(0.75),    reg_oos['regime_score'].quantile(0.75)),
-    ('90th', reg['regime_score'].quantile(0.90),    reg_oos['regime_score'].quantile(0.90)),
+    ('Mean', reg['regime_score'].mean(),         reg_oos['regime_score'].mean()),
+    ('75th', reg['regime_score'].quantile(0.75), reg_oos['regime_score'].quantile(0.75)),
+    ('90th', reg['regime_score'].quantile(0.90), reg_oos['regime_score'].quantile(0.90)),
 ]
 
 print(f"\n  {'Percentile':<15} {'In-sample':>12} {'OOS':>12} {'OOS/IS ratio':>14}")
@@ -1043,7 +1021,7 @@ for label, is_val, oos_val in percentiles:
     print(f"  {label:<15} {is_val:>12.4f} {oos_val:>12.4f} {ratio:>14.3f}x")
 
 # =============================================================================
-# 7. LAGGED REGIME CONDITIONING — RegimeScore_{t-1} on Return_{t+1}
+# 11. LAGGED REGIME CONDITIONING — RegimeScore_{t-1} on Return_{t+1}
 # =============================================================================
 # The cleanest possible test: fully predetermined regime score with zero
 # simultaneity between any variable. Tests whether prior-bar regime
@@ -1063,7 +1041,7 @@ print(f"    z-stat:                {model_lag.tvalues['tfi_x_regime_lag']:.3f}")
 print(f"    p-value:               {model_lag.pvalues['tfi_x_regime_lag']:.4f}")
 
 # =============================================================================
-# 8. MIDDAY SUBSAMPLE — 11:00–13:00 ET
+# 12. MIDDAY SUBSAMPLE — 11:00–13:00 ET
 # =============================================================================
 # Pre-specified time window: lambda estimation is most stable (full 30-bar
 # window of same-session data), TAR z-score most informative (lowest baseline
@@ -1081,14 +1059,24 @@ print(f"    β₃ (tfi_x_regime): {model_midday.params['tfi_x_regime']:.6f}")
 print(f"    z-stat:            {model_midday.tvalues['tfi_x_regime']:.3f}")
 print(f"    p-value:           {model_midday.pvalues['tfi_x_regime']:.4f}")
 
+print(f"\n  β₃ summary across time windows:")
+print(f"    Full sample:       β₃={model.params['tfi_x_regime']:.6f}  "
+      f"p={model.pvalues['tfi_x_regime']:.4f}")
+print(f"    Midday (11–12):    β₃={model_midday.params['tfi_x_regime']:.6f}  "
+      f"p={model_midday.pvalues['tfi_x_regime']:.4f}")
+print(f"    Afternoon (13–14): β₃={model_aft.params['tfi_x_regime']:.6f}  "
+      f"p={model_aft.pvalues['tfi_x_regime']:.4f}")
+print(f"    Stable lambda:     β₃={model_stable.params['tfi_x_regime']:.6f}  "
+      f"p={model_stable.pvalues['tfi_x_regime']:.4f}")
+
 # =============================================================================
-# 9. TFI QUINTILE INTERACTION — Bonferroni-Corrected
+# 13. TFI QUINTILE INTERACTION — Bonferroni-Corrected
 # =============================================================================
 # Replaces the continuous regime interaction term with four quintile dummy
 # interactions (Q3 omitted as reference). Two purposes:
 #   (1) Robustness: confirms the T+1 null is not an artifact of forcing
 #       linearity on the regime-TFI interaction.
-#   (2) Circularity evidence: a monotonic Q1→Q5 pattern would indicate
+#   (2) Circularity evidence: a monotonic Q1→Q5 pattern indicates
 #       mechanical co-elevation of TFI and RegimeScore rather than genuine
 #       informed trading concentration in moderate quintiles (Kyle, 1985).
 
@@ -1109,8 +1097,7 @@ model_quintile = _fit_ols(
     reg,
 )
 
-print(f"\n  Quintile Interaction | N={int(model_quintile.nobs):,}  "
-      f"(reference: Q3)")
+print(f"\n  Quintile Interaction | N={int(model_quintile.nobs):,}  (reference: Q3)")
 print(f"  {'Term':<22} {'Coeff':>12} {'z-stat':>8} {'p-value':>10} {'Bonferroni':>12}")
 print(f"  {'-' * 68}")
 for col in quintile_cols:
@@ -1128,7 +1115,7 @@ else:
     print(f"  No quintile interactions survive Bonferroni correction.")
 
 # =============================================================================
-# 10. REGIME TRANSITION DYNAMICS
+# 14. REGIME TRANSITION DYNAMICS
 # =============================================================================
 # Tests whether TFI is more predictive at the first bar of a low-to-high
 # regime transition than during sustained high-regime periods.
@@ -1167,11 +1154,11 @@ print(f"    Transition β  (tfi_x_transition): "
       f"p={model_transition.pvalues['tfi_x_transition']:.4f}")
 
 # =============================================================================
-# TRANSITION DYNAMICS — DELTA MAGNITUDE DIAGNOSTIC
+# 15. TRANSITION DYNAMICS — DELTA MAGNITUDE DIAGNOSTIC
 # =============================================================================
 # Tests the circularity explanation for the transition finding. If the
 # transition coefficient is driven by mechanical inflation (large RegimeScore
-# delta at crossing → large interaction term), it should be concentrated in
+# delta at crossing → large interaction term), it should concentrate in
 # large-delta transitions. Under genuine informed trader timing, the effect
 # should be consistent regardless of how large the delta is at the crossing.
 
@@ -1203,9 +1190,9 @@ else:
         ('Small delta (≤ median)', transition_bars['transition_delta'] <= delta_median),
         ('Large delta (> median)', transition_bars['transition_delta'] >  delta_median),
     ]:
-        split_idx       = transition_bars[split_cond].index
-        reg_d           = reg.copy()
-        reg_d['split_flag'] = 0
+        split_idx            = transition_bars[split_cond].index
+        reg_d                = reg.copy()
+        reg_d['split_flag']  = 0
         reg_d.loc[reg_d.index.isin(split_idx), 'split_flag'] = 1
         reg_d['tfi_x_split'] = reg_d['tfi'] * reg_d['split_flag']
 
@@ -1226,11 +1213,11 @@ else:
               f"p={model_d.pvalues['tfi_x_split']:.4f}")
 
 # =============================================================================
-# TRANSITION THRESHOLD ROBUSTNESS — 0.4 and 0.6
+# 16. TRANSITION THRESHOLD ROBUSTNESS — 0.4 and 0.6
 # =============================================================================
-# Tests whether the transition finding (p=0.018 at threshold=0.5) is stable
-# across alternative crossing thresholds. If the result is threshold-specific,
-# it is likely an artifact rather than a genuine finding.
+# Tests whether the transition result is stable across alternative crossing
+# thresholds. If the result is threshold-specific, it is more likely an
+# artifact of the mechanical inflation documented in Section 15.
 
 print("\n" + "=" * 60)
 print("TRANSITION THRESHOLD ROBUSTNESS — 0.4 and 0.6")
@@ -1240,8 +1227,7 @@ exclusion_aligned = exclusion_mask.reindex(reg.index).fillna(False).astype(bool)
 prior_excl_robust = exclusion_aligned.shift(1).fillna(False).astype(bool)
 
 for threshold in [0.4, 0.6]:
-    high_t = (reg['regime_score'] > threshold).astype(int)
-
+    high_t    = (reg['regime_score'] > threshold).astype(int)
     trans_col = f'transition_to_high_{threshold}'
     inter_col = f'tfi_x_transition_{threshold}'
 
@@ -1270,7 +1256,7 @@ print(f"    Transition β: {model_transition.params['tfi_x_transition']:.6f}  "
       f"p={model_transition.pvalues['tfi_x_transition']:.4f}")
 
 # =============================================================================
-# 11. TRANSACTION COST ANALYSIS
+# 17. TRANSACTION COST ANALYSIS
 # =============================================================================
 # Computes one-way and round-trip costs for ES futures (one tick = $12.50
 # per contract, tick size = 0.25 index points). Evaluates whether predicted
@@ -1280,7 +1266,6 @@ print("\n" + "=" * 60)
 print("TRANSACTION COST ANALYSIS")
 print("=" * 60)
 
-ES_TICK        = 0.25
 mean_price     = df_indexed['price'].resample('1min').last().dropna().mean()
 one_tick_log   = float(np.log1p(ES_TICK / mean_price))
 round_trip_log = 2.0 * one_tick_log
@@ -1309,14 +1294,16 @@ b5_c = model_contemp.params['lag_tfi']
 total_c   = b1_c + b3_c
 p_contemp = model_contemp.pvalues['tfi_x_regime_lag']
 
-def pred_contemp(tfi_val, regime_val):
-    return a_c + b1_c * tfi_val + b2_c * regime_val + b3_c * tfi_val * regime_val + b5_c * mean_lag_tfi
+def _pred_contemp(tfi_val, regime_val):
+    """Predicted return for contemporaneous spec at given TFI and regime values."""
+    return (a_c + b1_c * tfi_val + b2_c * regime_val
+            + b3_c * tfi_val * regime_val + b5_c * mean_lag_tfi)
 
 print(f"\n  --- Contemporaneous regression (β₃={b3_c:.6f}, p={p_contemp:.4f}) ---")
 print(f"  {'TFI':<12} {'Gross (bps)':>12} {'Net 1-way (bps)':>16} {'Net RT (bps)':>14}")
 print(f"  {'-' * 56}")
 for tfi_val, tag in [(tfi_p25, 'p25 (short)'), (tfi_p50, 'p50 (mid)  '), (tfi_p75, 'p75 (long) ')]:
-    gross = pred_contemp(tfi_val, mean_regime_h)
+    gross = _pred_contemp(tfi_val, mean_regime_h)
     net1  = gross - one_tick_log   * np.sign(tfi_val)
     net2  = gross - round_trip_log * np.sign(tfi_val)
     print(f"  {tag:<12} {gross * 1e4:>12.3f} {net1 * 1e4:>16.3f} {net2 * 1e4:>14.3f}")
@@ -1338,7 +1325,8 @@ b5_p = model.params['lag_tfi']
 total_p   = b1_p + b3_p
 p_primary = model.pvalues['tfi_x_regime']
 
-def pred_primary(tfi_val, regime_val):
+def _pred_primary(tfi_val, regime_val):
+    """Predicted return for T+1 spec at given TFI and regime values."""
     return (a_p + b1_p * tfi_val + b2_p * regime_val + b3_p * tfi_val * regime_val
             + b4_p * mean_lag_ret + b5_p * mean_lag_tfi)
 
@@ -1346,13 +1334,13 @@ print(f"\n  --- T+1 regression (β₃={b3_p:.6f}, p={p_primary:.4f}) ---")
 print(f"  {'TFI':<12} {'Gross (bps)':>12} {'Net 1-way (bps)':>16} {'Net RT (bps)':>14}")
 print(f"  {'-' * 56}")
 for tfi_val, tag in [(tfi_p25, 'p25 (short)'), (tfi_p50, 'p50 (mid)  '), (tfi_p75, 'p75 (long) ')]:
-    gross = pred_primary(tfi_val, mean_regime_h)
+    gross = _pred_primary(tfi_val, mean_regime_h)
     net1  = gross - one_tick_log   * np.sign(tfi_val)
     net2  = gross - round_trip_log * np.sign(tfi_val)
     print(f"  {tag:<12} {gross * 1e4:>12.3f} {net1 * 1e4:>16.3f} {net2 * 1e4:>14.3f}")
 
 # =============================================================================
-# 12. SAVE RESULTS
+# 18. SAVE RESULTS
 # =============================================================================
 
 print("\n" + "=" * 60)
@@ -1373,33 +1361,17 @@ for key, m in subsample_models.items():
     _save_model(m, f'subsample_{key}_regression.txt')
 
 # Collate key coefficients across all models into a single CSV
-PRIMARY_VARS = ['const', 'tfi', 'regime_score', 'tfi_x_regime', 'lag_return', 'lag_tfi']
 rows = []
-
-def _collect_rows(fitted_model, model_label):
-    for var in PRIMARY_VARS:
-        if var not in fitted_model.params:
-            continue
-        rows.append({
-            'model':     model_label,
-            'variable':  var,
-            'coeff':     fitted_model.params[var],
-            't_stat':    fitted_model.tvalues[var],
-            'p_value':   fitted_model.pvalues[var],
-            'r_squared': fitted_model.rsquared,
-            'n_obs':     int(fitted_model.nobs),
-        })
-
-_collect_rows(model,            'primary_t1')
-_collect_rows(model_contemp,    'contemporaneous')
-_collect_rows(model_oos,        'oos_primary_t1')
-_collect_rows(model_lag,        'lagged_regime_t1')
-_collect_rows(model_midday,     'midday_t1')
-_collect_rows(model_transition, 'transition_dynamics')
+_collect_rows(model,            'primary_t1',          rows)
+_collect_rows(model_contemp,    'contemporaneous',     rows)
+_collect_rows(model_oos,        'oos_primary_t1',      rows)
+_collect_rows(model_lag,        'lagged_regime_t1',    rows)
+_collect_rows(model_midday,     'midday_t1',           rows)
+_collect_rows(model_transition, 'transition_dynamics', rows)
 for h, m in horizon_models.items():
-    _collect_rows(m, f'horizon_t{h}')
+    _collect_rows(m, f'horizon_t{h}', rows)
 for key, m in subsample_models.items():
-    _collect_rows(m, f'subsample_{key}')
+    _collect_rows(m, f'subsample_{key}', rows)
 
 pd.DataFrame(rows).to_csv(
     os.path.join(RESULTS_DIR, 'key_coefficients.csv'),
