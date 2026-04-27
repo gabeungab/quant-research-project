@@ -41,11 +41,11 @@ from signal_construction import (
 # CONFIGURATION
 # =============================================================================
 
-DATA_DIR  = os.path.expanduser(
+DATA_DIR = os.path.expanduser(
     '~/Desktop/Quant Research Project/raw-data/trades/GLBX-20250501-20251231/'
 )
-SAVE_DIR  = os.path.join(os.path.dirname(__file__), '..', 'results', 'phase3')
-TZ        = 'America/New_York'
+SAVE_DIR = os.path.join(os.path.dirname(__file__), '..', 'results', 'phase3')
+TZ       = 'America/New_York'
 
 _RTH_OPEN  = pd.Timestamp('09:30').time()
 _RTH_CLOSE = pd.Timestamp('16:00').time()
@@ -100,7 +100,8 @@ ANNOUNCEMENT_DATES = [
 # =============================================================================
 
 def _plot_component(series, name, filename_prefix, save_dir,
-                    daily_agg='mean', dist_filter='none', ts_filter='none'):
+                    daily_agg='mean', dist_filter='none', ts_filter='none',
+                    n_trading_days=None):
     """
     Four-panel diagnostic plot for a 1-minute bar signal Series.
     Saves each panel as a separate PNG to save_dir.
@@ -125,9 +126,22 @@ def _plot_component(series, name, filename_prefix, save_dir,
     ts_filter : str
         Filter applied to daily aggregated values in the time series panel.
         'none' or 'positive' — same logic as dist_filter.
+    n_trading_days : int or None
+        Number of trading days in the sample, used for the intraday average
+        title. Should be passed explicitly from the calling scope (computed
+        from df_clean) to avoid miscounting from signal series index spans.
+        If None, falls back to counting non-empty daily buckets in the series
+        (less reliable — prefer passing explicitly).
     """
     os.makedirs(save_dir, exist_ok=True)
-    n_trading_days = series.dropna().resample('1D').mean().notna().sum()
+
+    # Use explicitly passed day count if available; otherwise approximate
+    # from the series index. The explicit count is always more accurate because
+    # the signal series index can span more calendar days than trading days.
+    if n_trading_days is None:
+        n_trading_days = int(
+            pd.Series(series.dropna().index.date).nunique()
+        )
 
     # ── 1. Full sample time series (resampled to daily) ───────────────────────
     daily_series = getattr(series.dropna().resample('1D'), daily_agg)()
@@ -230,25 +244,28 @@ def _plot_component(series, name, filename_prefix, save_dir,
 # PUBLIC PLOT FUNCTIONS
 # =============================================================================
 
-def plot_lambda(lambda_series, save_dir=SAVE_DIR):
+def plot_lambda(lambda_series, save_dir=SAVE_DIR, n_trading_days=None):
     """Four-panel diagnostic plot for Kyle's lambda."""
     _plot_component(lambda_series, "Kyle's Lambda", 'lambda',
                     save_dir, daily_agg='max',
-                    dist_filter='none', ts_filter='none')
+                    dist_filter='none', ts_filter='none',
+                    n_trading_days=n_trading_days)
 
 
-def plot_arrival(arrival_series, save_dir=SAVE_DIR):
+def plot_arrival(arrival_series, save_dir=SAVE_DIR, n_trading_days=None):
     """Four-panel diagnostic plot for trade arrival rate."""
     _plot_component(arrival_series, 'Trade Arrival Rate', 'arrival',
                     save_dir, daily_agg='mean',
-                    dist_filter='positive', ts_filter='positive')
+                    dist_filter='positive', ts_filter='positive',
+                    n_trading_days=n_trading_days)
 
 
-def plot_regime_score(regime_score, save_dir=SAVE_DIR):
+def plot_regime_score(regime_score, save_dir=SAVE_DIR, n_trading_days=None):
     """Four-panel diagnostic plot for RegimeScore."""
     _plot_component(regime_score, 'RegimeScore', 'regime_score',
                     save_dir, daily_agg='mean',
-                    dist_filter='positive', ts_filter='positive')
+                    dist_filter='positive', ts_filter='positive',
+                    n_trading_days=n_trading_days)
 
 
 def plot_tfi_by_regime(tfi_df, returns_df, regime_score, save_dir=SAVE_DIR):
@@ -286,7 +303,7 @@ def plot_tfi_by_regime(tfi_df, returns_df, regime_score, save_dir=SAVE_DIR):
     # ── Plot 1: TFI vs forward return scatter by regime ───────────────────────
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
     for ax, subset, label, color in [
-        (axes[0], high, 'High RegimeScore (>0.5)',  'steelblue'),
+        (axes[0], high, 'High RegimeScore (>0.5)',    'steelblue'),
         (axes[1], low,  'Low RegimeScore (\u22640.5)', 'tomato'),
     ]:
         plot_subset = subset.sample(min(5_000, len(subset)), random_state=42)
@@ -334,7 +351,7 @@ def plot_tfi_by_regime(tfi_df, returns_df, regime_score, save_dir=SAVE_DIR):
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
     for ax, acf_vals, n, label, color in [
-        (axes[0], high_acf, len(high), 'High RegimeScore (>0.5)',   'steelblue'),
+        (axes[0], high_acf, len(high), 'High RegimeScore (>0.5)',    'steelblue'),
         (axes[1], low_acf,  len(low),  'Low RegimeScore (\u22640.5)', 'tomato'),
     ]:
         ci = 1.96 / np.sqrt(n)
@@ -364,8 +381,14 @@ if __name__ == '__main__':
     print("Loading data...")
     df       = load_all_days(DATA_DIR)
     df_clean = remove_outliers(df)
+
+    # Compute trading day count from the authoritative source — the clean
+    # DataFrame — rather than inferring from signal series index spans,
+    # which can overcount due to calendar day boundaries.
+    n_days = df_clean['ts_event_et'].dt.date.nunique()
+
     print(f"    {len(df_clean):,} clean RTH trades across "
-          f"{df_clean['ts_event_et'].dt.date.nunique()} trading days")
+          f"{n_days} trading days")
 
     # ── Compute signals ───────────────────────────────────────────────────────
 
@@ -394,13 +417,13 @@ if __name__ == '__main__':
     os.makedirs(SAVE_DIR, exist_ok=True)
 
     print("\nGenerating lambda plots...")
-    plot_lambda(lambda_series)
+    plot_lambda(lambda_series, n_trading_days=n_days)
 
     print("\nGenerating arrival rate plots...")
-    plot_arrival(arrival_series)
+    plot_arrival(arrival_series, n_trading_days=n_days)
 
     print("\nGenerating RegimeScore plots...")
-    plot_regime_score(regime_score)
+    plot_regime_score(regime_score, n_trading_days=n_days)
 
     print("\nGenerating TFI conditional plots...")
     plot_tfi_by_regime(tfi, returns, regime_score)
