@@ -1612,6 +1612,12 @@ None
 None
 
 **Next step:**
+Address weaknesses in current final paper:
+- Lambda window sensitivity analysis (15/45/60/90)
+- Circulation bias simulation to demonstrate instead of 
+  only acknowledge.
+Continue analyzing final paper for more major weaknesses
+
 Begin planning Paper 2 — MBO-based orthogonal regime
 detector study.
 
